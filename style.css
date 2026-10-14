@@ -448,6 +448,13 @@ button, a, .student, .seat, .goal { -webkit-tap-highlight-color: transparent; to
 .brand:hover { opacity: .75; }
 .brand .brand-mark { width: 24px; height: 24px; }
 .topbar__brand { flex: none; }
+/* In der Kopfzeile groesser als im Footer; auf dem Handy etwas kleiner. */
+.topbar__brand, .site-header .brand { gap: 10px; font-size: 1.3125rem; }
+.topbar__brand .brand-mark, .site-header .brand .brand-mark { width: 36px; height: 36px; }
+@media (max-width: 639px) {
+  .topbar__brand, .site-header .brand { gap: 8px; font-size: 1.1875rem; }
+  .topbar__brand .brand-mark, .site-header .brand .brand-mark { width: 30px; height: 30px; }
+}
 
 .topbar__back {
   flex: none;
