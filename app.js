@@ -1,5 +1,5 @@
 /* ===================================================================
-   BehaviourTracker – statische Single-Page-App (Vanilla JS, ES-Module)
+   Klassenschwung – statische Single-Page-App (Vanilla JS, ES-Module)
    -------------------------------------------------------------------
    Sicherheitsleitlinien in dieser Datei:
    - Benutzertexte werden ausschliesslich ueber textContent gesetzt.
@@ -20,6 +20,7 @@ import {
 const appEl = document.getElementById("app");
 const topbarEl = document.getElementById("topbar");
 const topnavEl = document.getElementById("topnav");
+const topHintEl = document.getElementById("topHint");
 const topbarActionsEl = document.getElementById("topbarActions");
 const backBtn = document.getElementById("backBtn");
 const brandLinkEl = document.querySelector(".topbar__brand");
@@ -29,8 +30,8 @@ const toastEl = document.getElementById("toast");
 // setzen (Netlify schon, siehe _headers). In einem fremden Rahmen startet
 // die App deshalb gar nicht erst.
 if (window.top !== window.self) {
-  appEl.textContent = "BehaviourTracker kann nicht eingebettet werden. Bitte die Seite direkt öffnen.";
-  throw new Error("BehaviourTracker: Start in einem Frame verweigert.");
+  appEl.textContent = "Klassenschwung kann nicht eingebettet werden. Bitte die Seite direkt öffnen.";
+  throw new Error("Klassenschwung: Start in einem Frame verweigert.");
 }
 
 /* -------------------------------------------------------------------
@@ -727,7 +728,7 @@ function renderAuth() {
     h("div", { class: "auth" },
       h("div", { class: "auth__brand" },
         brandMark(),
-        h("h1", {}, "BehaviourTracker"),
+        h("h1", {}, "Klassenschwung"),
         h("p", { class: "muted" }, "Gutes Arbeiten im Unterricht sichtbar machen.")),
       privateNote,
       form,
@@ -1577,7 +1578,7 @@ async function resumeAfterReload() {
 }
 
 /* -------------------------------------------------------------------
-   Kopfzeile: Hauptnavigation, Jetzt-Hinweis, Schnellstart, Konto-Menue
+   Kopfzeile: Hinweiszeile, Hauptnavigation, Schnellstart, Konto-Menue
    ------------------------------------------------------------------- */
 
 const NAV = [
@@ -1647,24 +1648,14 @@ function dropdown({ button, items, align = "end", className = "" }) {
 
 let chromeBuilt = false;
 let chromeGuest = false;
-let nowPillEl = null;
 
+/** Segment-Schalter; auf schmalen Bildschirmen als eigene Zeile (CSS). */
 function navLinks(nav) {
   return nav.map((item) =>
     h("a", { class: "topnav__link", href: `#${item.hash}`, dataset: { key: item.key } }, item.label));
 }
 
-/** Unter 860px passt die Navigation nicht mehr nebeneinander: Menue-Knopf. */
-function compactNav(nav) {
-  const menuBtn = h("button", { class: "btn btn--ghost topbar__menu", type: "button", "aria-label": "Navigation" },
-    h("span", { class: "burger", "aria-hidden": "true" }));
-  return dropdown({
-    button: menuBtn,
-    align: "start",
-    className: "topbar__compact-nav",
-    items: () => nav.map((item) => ({ label: item.label, onSelect: () => navigate(item.hash) }))
-  });
-}
+const arrow = () => [" ", h("span", { "aria-hidden": "true" }, "\u2192")];
 
 /** Baut Navigation und Menues einmal auf: fuer Gaeste nur Fokus-Wald,
  * Probe-Unterricht und Anmelden, sonst die volle Navigation. */
@@ -1677,13 +1668,17 @@ function buildChrome() {
   if (state.guest) {
     topnavEl.replaceChildren(...navLinks(GUEST_NAV));
     topbarActionsEl.replaceChildren(h("a", { class: "btn btn--ghost", href: "#/anmelden" }, "Anmelden"));
-    topnavEl.before(compactNav(GUEST_NAV));
+    topHintEl.replaceChildren(
+      h("span", { class: "hint__long" }, "Ohne Anmeldung bleibt alles in deinem Browser."),
+      h("a", { href: "./datenschutz.html", target: "_blank", rel: "noopener" },
+        h("span", { class: "hint__long" }, "Mehr zum Datenschutz"),
+        h("span", { class: "hint__short" }, "Ohne Anmeldung bleibt alles im Browser"),
+        ...arrow()));
+    topHintEl.hidden = false;
     return;
   }
 
   topnavEl.replaceChildren(...navLinks(NAV));
-
-  nowPillEl = h("a", { class: "now-pill", hidden: true });
 
   const startBtn = h("button", { class: "btn btn--primary topbar__start", type: "button" },
     h("span", { "aria-hidden": "true" }, "+"), h("span", { class: "topbar__start-label" }, "Starten"));
@@ -1723,26 +1718,26 @@ function buildChrome() {
     ]
   });
 
-  topbarActionsEl.replaceChildren(nowPillEl, quickStart, account);
-  topnavEl.before(compactNav(NAV));
-  updateNowPill();
-  const timer = setInterval(updateNowPill, 30000);
+  topbarActionsEl.replaceChildren(quickStart, account);
+  updateHint();
+  const timer = setInterval(updateHint, 30000);
   window.addEventListener("pagehide", () => clearInterval(timer), { once: true });
 }
 
-/** Hinweis oben: welche Klasse laut Stundenplan gerade dran ist. */
-function updateNowPill() {
-  if (!nowPillEl) return;
+/** Hinweiszeile: welche Klasse laut Stundenplan gerade dran ist (sonst keine). */
+function updateHint() {
+  if (!chromeBuilt || chromeGuest) return;
   const current = currentLesson();
-  nowPillEl.hidden = !current;
-  if (!current) return;
-  nowPillEl.href = `#/classes/${current.classId}`;
-  nowPillEl.title = `${current.label}, ${formatTime(current.from)}–${formatTime(current.to)}`;
-  nowPillEl.replaceChildren(
-    h("span", { class: "now-pill__dot", "aria-hidden": "true" }),
-    h("span", { class: "now-pill__label" }, "Jetzt"),
-    h("strong", {}, current.name),
-    h("span", { class: "now-pill__time" }, `bis ${formatTime(current.to)}`));
+  topHintEl.hidden = !current;
+  if (!current) return topHintEl.replaceChildren();
+  topHintEl.replaceChildren(
+    h("span", {},
+      h("span", { class: "hint__long" }, "Jetzt laut Stundenplan: "),
+      h("span", { class: "hint__short" }, "Jetzt: "),
+      h("strong", {}, current.name),
+      h("span", { class: "hint__long" }, ` · ${current.label}`),
+      ` bis ${formatTime(current.to)}`),
+    h("a", { href: `#/classes/${current.classId}` }, "Zur Klasse", ...arrow()));
 }
 
 async function logout() {
@@ -1765,7 +1760,7 @@ async function logout() {
 async function exportData() {
   try {
     const data = await api.exportAll();
-    downloadFile(`behaviourtracker-export-${todayIso()}.json`, JSON.stringify(data, null, 2), "application/json");
+    downloadFile(`klassenschwung-export-${todayIso()}.json`, JSON.stringify(data, null, 2), "application/json");
     toast("Export heruntergeladen.");
   } catch (error) {
     showError(error, "Export fehlgeschlagen.");
@@ -1795,14 +1790,14 @@ function setChrome({ title, back = null, section = null, minimal = false }) {
   topbarEl.hidden = false;
   if (chromeBuilt && chromeGuest !== state.guest) resetChrome();
   buildChrome();
-  document.title = title && title !== "BehaviourTracker" ? `${title} – BehaviourTracker` : "BehaviourTracker";
+  document.title = title && title !== "Klassenschwung" ? `${title} – Klassenschwung` : "Klassenschwung";
   topbarEl.classList.toggle("topbar--wide", appEl.classList.contains("app--wide"));
   topbarEl.classList.toggle("topbar--minimal", minimal);
   for (const link of topnavEl.querySelectorAll(".topnav__link")) {
     if (link.dataset.key === section) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   }
-  updateNowPill();
+  updateHint();
   if (back) {
     backBtn.hidden = false;
     backBtn.onclick = () => navigate(back);
@@ -1814,10 +1809,10 @@ function setChrome({ title, back = null, section = null, minimal = false }) {
 
 function resetChrome() {
   chromeBuilt = false;
-  nowPillEl = null;
-  topbarEl.querySelector(".topbar__compact-nav")?.remove();
   topnavEl.replaceChildren();
   topbarActionsEl.replaceChildren();
+  topHintEl.replaceChildren();
+  topHintEl.hidden = true;
 }
 
 const ROUTES = [
@@ -1922,7 +1917,7 @@ function renderTermsGate() {
     h("p", { class: "muted" },
       updated
         ? "Seit deiner letzten Bestätigung gibt es eine neue Fassung der Nutzungsbedingungen. "
-        : "Für BehaviourTracker gelten jetzt Nutzungsbedingungen. ",
+        : "Für Klassenschwung gelten jetzt Nutzungsbedingungen. ",
       "Sie enthalten auch die Vereinbarung zur Auftragsverarbeitung für die Schülerdaten, die du einträgst. " +
       "Deine Daten bleiben unverändert."),
     errorBox,
@@ -2114,7 +2109,7 @@ async function renderSettings() {
     try {
       await api.saveSettings(draft);
       state.teacher.settings = JSON.parse(JSON.stringify(draft));
-      updateNowPill();
+      updateHint();
       statusEl.textContent = "Gespeichert";
     } catch (error) {
       statusEl.textContent = "";
@@ -2557,7 +2552,7 @@ async function renderScheduleImport() {
       await api.saveSettings(next);
       state.teacher.settings = next;
       await refreshClassIndex();
-      updateNowPill();
+      updateHint();
       toast(created.size
         ? `Stundenplan übernommen, ${created.size === 1 ? "1 Klasse" : `${created.size} Klassen`} neu angelegt.`
         : "Stundenplan übernommen.");
@@ -3451,7 +3446,7 @@ async function renderClassStats(classId) {
         minutes(perLesson(t.mitte + t.rechts, t.lessons), t.lessons)];
     }),
     notes: [EXPORT_NOTE, SCHOOL_YEAR_DELETE_INFO],
-    footer: `BehaviourTracker · ${cls.name}`
+    footer: `Klassenschwung · ${cls.name}`
   }), PDF_TYPE);
 
   const table = students.length
@@ -3557,7 +3552,7 @@ async function renderStudentStats(classId, studentId) {
       { label: "gut", align: "right" }, { label: "großartig", align: "right" }],
     rows: lessons.map((l) => [l.name, formatDate(l.date), formatDurationLong(l.mitte), formatDurationLong(l.rechts)]),
     notes: [EXPORT_NOTE.replace(/ Alphabetisch.*$/, ""), SCHOOL_YEAR_DELETE_INFO],
-    footer: `BehaviourTracker · ${student.name}`
+    footer: `Klassenschwung · ${student.name}`
   }), PDF_TYPE);
 
   const tiles = h("div", { class: "stats__grid" },

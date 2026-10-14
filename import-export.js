@@ -1,5 +1,5 @@
 /* ===================================================================
-   BehaviourTracker – Import und Export
+   Klassenschwung – Import und Export
    -------------------------------------------------------------------
    Klassenliste (CSV, Excel, Untis), Stundenplan (iCal aus WebUntis
    oder einem Kalender), CSV- und PDF-Export der Auswertung.
@@ -873,7 +873,7 @@ export function buildPdf({ title, subtitle = "", facts = [], columns, rows, note
   objects.push(`<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`);
   objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
   objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
-  objects.push(`<< /Title ${utf16(title)} /Producer (BehaviourTracker) /CreationDate (${stamp}) >>`);
+  objects.push(`<< /Title ${utf16(title)} /Producer (Klassenschwung) /CreationDate (${stamp}) >>`);
   pages.forEach((page, i) => {
     const content = page.join("\n");
     objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] ` +

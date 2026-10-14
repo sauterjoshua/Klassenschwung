@@ -1,10 +1,10 @@
-# BehaviourTracker
+# Klassenschwung
 
 ---
 
 ## Ohne Anmeldung
 
-Die Startseite zeigt, was BehaviourTracker kann. Ohne Konto gehen:
+Die Startseite zeigt, was Klassenschwung kann. Ohne Konto gehen:
 
 - **Unterricht ausprobieren** (`app.html#/ausprobieren`): Vornamen eintippen
   (oder Beispielnamen einsetzen), Kanban oder sortierte Ansicht wählen und
@@ -20,7 +20,7 @@ laufen über `guestApi` in `app.js`.
 
 ## Anmelden
 
-BehaviourTracker ist derzeit ein **privates Projekt** (siehe unten): keine
+Klassenschwung ist derzeit ein **privates Projekt** (siehe unten): keine
 öffentliche Registrierung, Zugänge werden persönlich vergeben. Wer auf
 **Anmelden** tippt, sieht zuerst diesen Hinweis und die Links zu den
 Funktionen ohne Konto, darunter das Anmeldeformular.
@@ -44,7 +44,7 @@ Funktionen ohne Konto, darunter das Anmeldeformular.
 
 ## Was die Seite macht
 
-BehaviourTracker macht gutes Arbeiten im Unterricht sichtbar. Jede Person
+Klassenschwung macht gutes Arbeiten im Unterricht sichtbar. Jede Person
 hat einen von drei Zuständen:
 
 | Zustand | Darstellung | Zeit wird gespeichert |

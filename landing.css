@@ -1,12 +1,40 @@
 /* ===================================================================
-   BehaviourTracker – Startseite (index.html)
+   Klassenschwung – Startseite (index.html), Rechtliches und 404
    Baut auf den Tokens, Buttons und der Schrift aus style.css auf.
    Abstaende folgen einem 8px-Raster (.5rem-Schritte).
    =================================================================== */
 
-/* --container, --gutter, --header-h und --bg-glass stehen in style.css. */
+/* --container und --gutter stehen in style.css. */
 
-html { scroll-padding-top: calc(var(--header-h) + 16px); }
+/* ---------------- Farben ----------------
+   Die Grundtoene ("Lichtung") stehen in style.css und gelten auch fuer die
+   App. Hier nur die Waldtoene fuer die Baeume. */
+
+:root {
+  --tree-a:      #39644d;
+  --tree-b:      #4f7a61;
+  --tree-c:      #2f5541;
+  --tree-d:      #87b99e;
+  --tree-e:      #a9cbb7;
+  --trunk:       #8b8a83;
+  --trunk-light: #b9b5a9;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* Baeume eine Stufe heller, sonst verschwinden sie im Grund */
+    --tree-a:      #4f7a61;
+    --tree-b:      #6a9a7e;
+    --tree-c:      #3d6a52;
+    --trunk:       #77766f;
+    --trunk-light: #9a968b;
+  }
+}
+
+/* Sichtbar klebender Teil der Kopfzeile (Sprungziele landen darunter) */
+:root { --header-h: 80px; --sticky-h: var(--header-h); }
+@media (max-width: 879px) { :root { --header-h: 60px; --sticky-h: 64px; } }
+
+html { scroll-padding-top: calc(var(--sticky-h) + 16px); }
 @media (prefers-reduced-motion: no-preference) {
   html { scroll-behavior: smooth; }
 }
@@ -36,500 +64,285 @@ p { margin: 0; }
 .skip-link:focus { top: 16px; }
 
 /* ---------------- Header ---------------- */
+/* Hinweiszeile, darunter Logo | Segment-Schalter | Anmelden. Die Kopfzeile
+   klebt so, dass die Hinweiszeile wegrollt; auf dem Handy rollt auch die
+   Logo-Zeile weg und nur der Segment-Schalter bleibt stehen. */
 
 .site-header {
   position: sticky;
-  top: 0;
+  top: calc(-1 * var(--hint-h));
   z-index: 20;
   background: var(--bg-glass);
-  border-bottom: 1px solid var(--border);
   -webkit-backdrop-filter: saturate(180%) blur(12px);
   backdrop-filter: saturate(180%) blur(12px);
 }
 .site-header__inner {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 32px;
   height: var(--header-h);
 }
+.site-header .brand { justify-self: start; }
 
+/* Anmelden als Pille mit feinem Rand */
+.site-header__login {
+  justify-self: end;
+  min-height: 44px;
+  padding: 0 18px;
+}
 
-.site-nav { display: none; gap: 24px; margin-left: auto; }
-.site-nav a,
+@media (max-width: 879px) {
+  .site-header { top: calc(-1 * (var(--hint-h) + var(--header-h))); }
+  .site-header__inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: var(--header-h) auto;
+    gap: 0 12px;
+    height: auto;
+    padding-bottom: 12px;
+  }
+  .site-header__login { grid-area: 1 / 2; }
+  /* Ganze Breite, auf dem Tablet nicht breiter als noetig */
+  .site-nav {
+    grid-area: 2 / 1 / 3 / -1;
+    justify-self: center;
+    width: 100%;
+    max-width: 560px;
+  }
+  .site-nav a { flex: 1 1 auto; padding: 0 8px; font-size: .875rem; }
+  .site-header__login { padding: 0 16px; font-size: .9375rem; }
+}
+
 .site-footer nav a {
   color: var(--text-muted);
-  font-size: .9375rem;
-  font-weight: 500;
+  font-size: 1rem;
   text-decoration: none;
   transition: color var(--t);
 }
-.site-nav a:hover,
 .site-footer nav a:hover,
 .site-footer nav a[aria-current="page"] { color: var(--text); }
 
-.site-header__login { margin-left: auto; min-height: 40px; }
-@media (min-width: 720px) {
-  .site-nav { display: flex; }
-  /* Nur hinter der Navigation (Startseite); auf Seiten ohne Navigation
-     (Rechtliches, 404) bleibt der Knopf rechts. */
-  .site-nav + .site-header__login { margin-left: 0; }
-}
+/* ---------------- Buttons ---------------- */
 
-/* ---------------- Buttons & Kleinteile ---------------- */
-
+/* Grosse Knoepfe als Pillen, flach ohne Schatten */
 .btn--xl {
-  min-height: 48px;
-  padding: 12px 24px;
+  min-height: 54px;
+  padding: 0 28px;
+  border-radius: 999px;
   font-size: 1.0625rem;
   font-weight: 600;
 }
-.btn--primary.btn--xl { box-shadow: 0 1px 2px rgba(17, 17, 17, .08), 0 4px 16px var(--accent-soft); }
-.btn--primary.btn--xl:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(17, 17, 17, .08), 0 8px 24px var(--accent-soft); }
-.btn--primary.btn--xl:active:not(:disabled) { transform: translateY(0); }
+.btn--soft,
+.btn--paper { border-color: transparent; font-weight: 500; }
+.btn--soft { background: var(--soft); }
+.btn--soft:hover:not(:disabled) { background: var(--line); }
+.btn--paper { background: var(--surface); }
+.btn--paper:hover:not(:disabled) { background: var(--bg); }
 
-
-
-/* ---------------- Abschnitte ---------------- */
-
-.section { padding: 64px 0; }
-@media (min-width: 960px) { .section { padding: 96px 0; } }
-/* Zwei helle Abschnitte direkt hintereinander: nicht doppelt Luft */
-.section:not(.section--alt) + .section:not(.section--alt) { padding-top: 0; }
-
-/* Abschnittskoepfe linksbuendig wie der Hero; ab Desktop Ueberschrift
-   links, Einleitung rechts auf Grundlinie der letzten Zeile. */
-.section__head { display: grid; gap: 16px; margin-bottom: 40px; }
-@media (min-width: 960px) {
-  .section__head { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; gap: 64px; margin-bottom: 56px; }
+.lead {
+  max-width: 44ch;
+  color: var(--text-muted);
+  font-size: 1.125rem;
+  line-height: 1.55;
+  text-wrap: pretty;
 }
-.section__head h2,
-.howto__intro h2 {
-  margin: 0;
-  max-width: 18ch;
-  font-size: clamp(1.875rem, 1.25rem + 2.2vw, 2.75rem);
-  font-weight: 700;
-  line-height: 1.08;
-  letter-spacing: -.03em;
-  text-wrap: balance;
-}
-.section__lead { margin: 0; max-width: 46ch; color: var(--text-muted); font-size: 1.125rem; text-wrap: pretty; }
 
 /* ---------------- 1. Hero ---------------- */
 
-.hero {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  padding: 48px 0 64px;
-}
-/* Dezenter Verlauf als visueller Anker hinter dem Mockup */
-.hero::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(ellipse 60% 50% at 75% 55%, var(--accent-soft), transparent 70%),
-    radial-gradient(ellipse 40% 40% at 10% 0%, rgba(17, 17, 17, .03), transparent 70%);
-}
-.hero__inner { display: grid; gap: 48px; align-items: center; }
-@media (min-width: 960px) {
-  .hero { padding: 96px 0; }
-  .hero__inner { grid-template-columns: 1.05fr 1fr; gap: 64px; }
-}
+.hero { padding-top: 64px; text-align: center; }
+@media (min-width: 960px) { .hero { padding-top: 88px; } }
 
 .hero h1 {
-  font-size: clamp(2.75rem, 2rem + 3vw, 4rem);
-  font-weight: 700;
-  line-height: 1.05;
+  max-width: 16ch;
+  margin: 0 auto 24px;
+  font-size: clamp(2.625rem, 1.6rem + 4.2vw, 5rem);
+  font-weight: 300;
+  line-height: 1.04;
   letter-spacing: -.035em;
-  margin-bottom: 24px;
   text-wrap: balance;
 }
-.lead {
-  max-width: 34rem;
-  color: var(--text-muted);
-  font-size: 1.125rem;
-  line-height: 1.5;
-  text-wrap: pretty;
-}
-.hero__cta { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; margin-top: 32px; }
-.hero__note { color: var(--text-muted); font-size: .9375rem; }
-
-/* Produkt-Mockup: nachgebaute "Sortierte Ansicht" der App */
-.mockup {
-  width: 100%;
-  max-width: 34rem;
-  margin: 0 auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-lg);
-  overflow: hidden;
-}
-.mockup__bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  font-size: .875rem;
-  font-weight: 600;
-}
-.mockup__class { display: inline-flex; align-items: center; gap: 8px; }
-.mockup__live {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--col-mitte-bg);
-  color: var(--col-mitte-head);
-  font-size: .75rem;
-  font-weight: 600;
-}
-.mockup__end {
-  padding: 4px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  color: var(--text-muted);
-  font-size: .75rem;
-  font-weight: 500;
-}
-.mockup__stats {
+.hero .lead { margin: 0 auto; font-size: clamp(1.125rem, 1rem + .4vw, 1.25rem); }
+.hero__cta {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 4px 16px;
-  padding: 16px 16px 0;
-  font-size: .8125rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  gap: 12px;
+  margin: 36px 0 56px;
 }
-.mockup__stats span { display: inline-flex; align-items: center; gap: 6px; }
-.mockup__stats span::before { content: ""; width: 8px; height: 8px; border-radius: 2px; }
-.mockup__stats [data-s="links"]::before  { background: var(--col-links-head); }
-.mockup__stats [data-s="mitte"]::before  { background: var(--col-mitte-head); }
-.mockup__stats [data-s="rechts"]::before { background: var(--col-rechts-head); }
 
-.mockup__grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin: 0;
-  padding: 16px;
-  list-style: none;
+/* Wald: ab Tablet ganz zu sehen; auf schmalen Bildschirmen wird seitlich
+   beschnitten statt verkleinert, damit die Baeume gross genug bleiben. */
+.woods {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1200 / 260;
+  min-height: 120px;
 }
-.mockup__grid li {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  aspect-ratio: 1 / 1;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: clamp(.75rem, .6rem + .6vw, .9375rem);
-  font-weight: 700;
-  letter-spacing: -.01em;
-}
-.mockup__grid [data-s="links"]  { background: var(--col-links-bg); }
-.mockup__grid [data-s="mitte"]  { background: var(--col-mitte-bg); }
-.mockup__grid [data-s="rechts"] { background: var(--col-rechts-bg); }
+.woods__a { fill: var(--tree-a); }
+.woods__b { fill: var(--tree-b); }
+.woods__c { fill: var(--tree-c); }
+.woods__d { fill: var(--tree-d); }
+.woods__e { fill: var(--tree-e); }
+.woods__trunk { fill: var(--trunk); }
+.woods__trunk-light { fill: var(--trunk-light); }
+.woods__ground { fill: none; stroke: var(--line); }
 
+/* Die Baeume wachsen beim Laden nacheinander aus dem Boden */
 @media (prefers-reduced-motion: no-preference) {
-  .hero__visual { animation: rise 600ms var(--ease) 120ms both; }
+  .woods__tree {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: grow 700ms var(--ease) both;
+    animation-delay: calc(150ms + var(--i, 0) * 60ms);
+  }
 }
-@keyframes rise {
-  from { opacity: 0; transform: translateY(16px); }
+@keyframes grow {
+  from { opacity: 0; transform: scale(.6); }
   to   { opacity: 1; transform: none; }
 }
 
-/* ---------------- 2. Kennzahlen ---------------- */
+/* ---------------- 2. Werkzeuge ---------------- */
 
-.facts { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--surface); }
-.facts__grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 32px 24px;
-  margin: 0;
-  padding: 40px 0;
-}
-@media (min-width: 960px) {
-  .facts__grid { grid-template-columns: repeat(4, 1fr); gap: 32px; }
-  .fact dt { font-size: 1.75rem; }
-}
-.fact { display: flex; flex-direction: column; gap: 8px; }
-.fact dt {
-  font-size: 1.5rem;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -.02em;
-  font-variant-numeric: tabular-nums;
-}
-.fact dd { margin: 0; color: var(--text-muted); font-size: .9375rem; }
-
-/* ---------------- 3. Problem -> Loesung ---------------- */
-
-.compare { display: grid; gap: 24px; }
-@media (min-width: 768px) { .compare { grid-template-columns: 1fr 1fr; } }
-
-.compare__card {
-  padding: 32px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-.compare__card h3 { font-size: 1.125rem; font-weight: 600; margin-bottom: 24px; }
-.compare__card--before { background: var(--surface-2); }
-.compare__card--before h3 { color: var(--text-muted); }
-.compare__card--after { background: var(--surface); box-shadow: var(--shadow-lg); }
-
-.checklist { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; }
-.checklist li { display: flex; gap: 16px; align-items: flex-start; }
-.checklist .icon { width: 20px; height: 20px; margin-top: 2px; }
-.compare__card--before li { color: var(--text-muted); }
-.compare__card--before .icon { color: var(--text-muted); opacity: .7; }
-.compare__card--after .icon { color: var(--accent); }
-
-/* ---------------- 4. Features ---------------- */
-
-/* Bento: Board breit, Auswertung schmal, Fokus-Wald ueber die ganze Breite.
-   Jede Kachel zeigt einen nachgebauten Ausschnitt der App. */
-.bento { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; }
-@media (min-width: 960px) {
-  .bento { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 24px; }
-  .tile--tap   { grid-column: span 7; }
-  .tile--times { grid-column: span 5; }
-  .tile--forest { grid-column: 1 / -1; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); align-items: center; gap: 48px; }
-}
-
-.tile {
-  display: grid;
-  align-content: start;
-  gap: 24px;
-  padding: 24px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
+.tools {
+  padding: 72px 0;
+  border-top: 1px solid var(--border);
   background: var(--surface);
 }
-@media (min-width: 640px) { .tile { padding: 32px; } }
-.tile h3 { margin-bottom: 8px; font-size: 1.375rem; font-weight: 600; letter-spacing: -.015em; }
-.tile__text p { max-width: 42ch; color: var(--text-muted); text-wrap: pretty; }
-.tile__note { color: var(--text-muted); font-size: .875rem; }
-.tile__link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 20px;
-  font-weight: 600;
-  text-decoration: none;
-}
-.tile__link span { transition: transform var(--t); }
-.tile__link:hover span { transform: translateX(3px); }
+@media (min-width: 960px) { .tools { padding: 104px 0; } }
 
-/* Ausschnitte sitzen auf dem Seitengrund, damit sie sich von der Kachel abheben */
-.demo-tap,
-.demo-times {
-  border: 1px solid var(--border);
-  border-radius: 12px;
+.tools__title,
+.principles__title,
+.cta__text h2 { letter-spacing: -.025em; text-wrap: balance; }
+
+.tools__title {
+  max-width: 22ch;
+  margin: 0 0 40px;
+  font-size: clamp(1.875rem, 1.4rem + 1.6vw, 2.875rem);
+  font-weight: 400;
+  line-height: 1.12;
+}
+@media (min-width: 960px) { .tools__title { margin-bottom: 56px; } }
+
+.tools__grid { display: grid; gap: 16px; }
+@media (min-width: 900px) { .tools__grid { grid-template-columns: 1fr 1fr; gap: 24px; } }
+
+.tool {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 24px;
+  border-radius: 28px;
   background: var(--bg);
 }
+@media (min-width: 640px) { .tool { padding: 40px; } }
+.tool h3 {
+  margin: 0 0 12px;
+  font-size: 1.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+.tool p { max-width: 44ch; color: var(--text-muted); text-wrap: pretty; }
+.tool .tool__kicker { margin-bottom: 8px; color: var(--accent); font-size: .9375rem; font-weight: 600; }
 
-/* Feedback: dieselbe Kachel in den drei Stufen */
-.tile--tap { grid-template-rows: auto 1fr auto; }
-.demo-tap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Board: nachgebaute "Sortierte Ansicht" in den Kachelfarben */
+.tool__board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  padding: 32px 12px;
+  margin: auto 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: .9375rem;
+  font-weight: 500;
 }
-.demo-tap__tile {
-  position: relative;
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-width: 0;
-  max-width: 8rem;
-  aspect-ratio: 1;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
-}
-.demo-tap__tile b { font-size: clamp(1rem, .8rem + .8vw, 1.375rem); letter-spacing: -.01em; }
-.demo-tap__tile span { font-size: .75rem; font-weight: 600; }
-.demo-tap__tile[data-s="links"]  { background: var(--col-links-bg); }
-.demo-tap__tile[data-s="mitte"]  { background: var(--col-mitte-bg); }
-.demo-tap__tile[data-s="rechts"] { background: var(--col-rechts-bg); }
-.demo-tap__tile[data-s="links"] span  { color: var(--col-links-head); }
-.demo-tap__tile[data-s="mitte"] span  { color: var(--col-mitte-head); }
-.demo-tap__tile[data-s="rechts"] span { color: var(--col-rechts-head); }
-/* Erste Kachel: rechte Haelfte leicht getoent (dort wird getippt), der
-   Tipp-Punkt sitzt unter dem Namen, damit er nichts verdeckt. */
-.demo-tap__tile--touch { overflow: hidden; }
-.demo-tap__tile--touch::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 0 50%;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-.demo-tap__tile--touch::after {
-  content: "";
-  position: absolute;
-  bottom: 9%;
-  left: 75%;
-  width: 18px;
-  height: 18px;
-  margin-left: -9px;
-  border: 2px solid var(--accent);
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
-}
-.demo-tap__tile > * { position: relative; }
-/* Kleine Kacheln: kein Platz fuer den Punkt, die getoente Haelfte reicht */
-@media (max-width: 639px) { .demo-tap__tile--touch::after { display: none; } }
-.demo-tap__arrow {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: var(--text-muted);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* Auswertung: wie die Schueler-Auswertung in der App */
-.demo-times { padding: 20px; font-size: .875rem; }
-.demo-times__who { margin-bottom: 12px; font-size: 1rem; font-weight: 700; }
-.demo-times__who span { color: var(--text-muted); font-weight: 400; }
-.demo-times__stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-.demo-times__stats div { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: 8px; }
-.demo-times__stats b { font-size: 1.25rem; line-height: 1.15; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.demo-times__stats span { font-size: .8125rem; font-weight: 500; }
-.demo-times__stats [data-s="mitte"]  { background: var(--col-mitte-bg); }
-.demo-times__stats [data-s="rechts"] { background: var(--col-rechts-bg); }
-.demo-times__stats [data-s="mitte"] span  { color: var(--col-mitte-head); }
-.demo-times__stats [data-s="rechts"] span { color: var(--col-rechts-head); }
-.demo-times table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.demo-times td { padding: 8px 0; border-top: 1px solid var(--border); }
-.demo-times td + td { padding-left: 12px; text-align: right; white-space: nowrap; }
-.demo-times td span { margin-left: 4px; color: var(--text-muted); }
-
-/* Fokus-Wald: feste Beamer-Farben wie .focus in style.css */
-.demo-forest {
-  position: relative;
-  display: grid;
-  justify-items: center;
+@media (min-width: 480px) { .tool__board { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.tool__board li {
   overflow: hidden;
-  padding: 24px 24px 28px;
+  padding: 14px 10px;
   border-radius: 12px;
-  color: #f1f5f4;
-  background-color: #12343b;
-  background-image:
-    radial-gradient(ellipse 80% 55% at 50% 100%, rgba(255, 255, 255, .10), transparent 70%),
-    linear-gradient(to bottom, rgba(0, 0, 0, .28), transparent 45%);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.demo-forest__progress { position: absolute; inset: 0 0 auto; height: 4px; background: rgba(255, 255, 255, .1); }
-.demo-forest__progress i { display: block; width: 84%; height: 100%; background: #86efac; }
-.demo-forest__top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; justify-self: stretch; }
-.demo-forest__time { font-size: clamp(2.25rem, 1.75rem + 2vw, 3.25rem); font-weight: 700; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.demo-forest__goal { font-size: .875rem; opacity: .75; }
-.demo-forest__tree { display: block; width: auto; height: clamp(150px, 20vw, 200px); margin-top: 8px; }
-.demo-forest__status { font-size: 1.125rem; font-weight: 700; }
-.demo-forest__meter { justify-self: stretch; height: 10px; margin-top: 16px; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, .14); }
-.demo-forest__meter i { display: block; width: 31%; height: 100%; border-radius: inherit; background: #4ade80; }
+.tool__board [data-s="links"]  { background: var(--col-links-bg); }
+.tool__board [data-s="mitte"]  { background: var(--col-mitte-bg); }
+.tool__board [data-s="rechts"] { background: var(--col-rechts-bg); }
 
-/* ---------------- 5. So funktioniert's ---------------- */
-
-.section--alt { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-
-/* Desktop: links Ueberschrift und darunter das Wichtigste zum Datenschutz,
-   rechts die Schritte. Mobil: Ueberschrift, Schritte, Datenschutz. */
-.howto { display: grid; gap: 40px; }
-@media (min-width: 960px) {
-  .howto { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); grid-template-rows: auto 1fr; gap: 32px 96px; }
-  .howto .steps { grid-column: 2; grid-row: 1 / span 2; }
-  .howto .trust { grid-column: 1; grid-row: 2; align-self: start; }
+/* Fokus-Wald: dunkle Karte in beiden Modi */
+.tool--forest { background: var(--forest); color: var(--forest-text); }
+.tool--forest p { color: var(--forest-muted); }
+.tool--forest .tool__kicker { color: var(--forest-accent); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tool--forest { box-shadow: inset 0 0 0 1px var(--border); }
 }
-.howto__intro .section__lead { margin-top: 16px; }
-
-.steps { display: grid; margin: 0; padding: 0; list-style: none; }
-.step {
-  display: grid;
-  grid-template-columns: 3.5rem minmax(0, 1fr);
+.tool__focus { display: grid; gap: 10px; margin-top: auto; font-size: .9375rem; }
+.tool--forest .tool__focus-row {
+  display: flex;
+  justify-content: space-between;
   gap: 16px;
-  padding: 32px 0;
-  border-top: 1px solid var(--border);
-}
-.step:first-child { padding-top: 0; border-top: 0; }
-.step:last-child { padding-bottom: 0; }
-.step__num {
-  color: var(--accent);
-  font-size: 3rem;
-  font-weight: 300;
-  line-height: .9;
-  letter-spacing: -.04em;
+  max-width: none;
+  color: var(--forest-text);
   font-variant-numeric: tabular-nums;
 }
-.step h3 { margin-bottom: 8px; font-size: 1.375rem; font-weight: 600; letter-spacing: -.015em; }
-.step p { max-width: 44ch; color: var(--text-muted); text-wrap: pretty; }
-.checklist li { text-wrap: pretty; }
+.tool__focus-bar { height: 6px; border-radius: 3px; background: var(--forest-track); }
+.tool__focus-bar i { display: block; width: 16%; height: 100%; border-radius: inherit; background: var(--forest-accent); }
+.tool--forest .tool__focus-status { margin-top: 6px; color: var(--forest-accent); }
 
-.trust {
-  display: grid;
-  gap: 12px;
-  margin: 0;
-  padding: 24px 0 0;
-  border-top: 1px solid var(--border);
-  list-style: none;
+/* ---------------- 3. Grundsaetze ---------------- */
+
+.principles { padding: 80px 0; }
+@media (min-width: 960px) { .principles { padding: 112px 0; } }
+
+.principles__title {
+  max-width: 20ch;
+  margin: 0 0 48px;
+  font-size: clamp(2rem, 1.3rem + 2.6vw, 3.625rem);
+  font-weight: 300;
+  line-height: 1.1;
+  letter-spacing: -.03em;
 }
-.trust li { display: flex; align-items: center; gap: 12px; font-size: .9375rem; font-weight: 500; }
-.trust .icon { width: 20px; height: 20px; color: var(--accent); }
+@media (min-width: 960px) { .principles__title { margin-bottom: 64px; } }
 
-/* ---------------- 6. Finaler CTA ---------------- */
+.principles__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0 40px;
+  margin: 0;
+}
+.principles__list div { padding: 24px 0; border-top: 1px solid var(--line); }
+.principles__list dt { margin-bottom: 6px; font-weight: 600; }
+.principles__list dd { margin: 0; color: var(--text-muted); }
+
+/* ---------------- 4. Abschluss ---------------- */
+
+.cta { padding-bottom: 80px; }
+@media (min-width: 960px) { .cta { padding-bottom: 104px; } }
 
 .cta__panel {
-  /* Dunkle Flaeche in beiden Modi, aber aus der Farbwelt (tiefer Ton der
-     Akzentfarbe) statt eines fremden Schwarz mitten in der hellen Seite.
-     Akzent lokal auf die helle Variante, damit der Button genug Kontrast hat. */
-  --cta-bg:       color-mix(in srgb, var(--col-rechts-head) 82%, #000);
-  --accent:       var(--accent-on-dark);
-  --accent-hover: var(--accent-on-dark-hover);
-  --accent-soft:  color-mix(in srgb, var(--accent-on-dark) 20%, transparent);
-  --accent-text:  var(--accent-on-dark-text);
-  padding: 72px 24px;
-  border-radius: 20px;
-  background:
-    radial-gradient(ellipse 70% 90% at 50% 130%, color-mix(in srgb, var(--accent-on-dark) 26%, transparent), transparent 70%),
-    var(--cta-bg);
-  color: #fafafa;
-  text-align: center;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 32px 56px;
+  padding: 32px 24px;
+  border-radius: 32px;
+  background: var(--soft);
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .cta__panel {
-    --cta-bg: color-mix(in srgb, var(--accent-on-dark) 10%, var(--surface));
-    border: 1px solid var(--border);
-  }
+@media (min-width: 960px) { .cta__panel { padding: 64px; } }
+.cta__tree { flex: none; width: 96px; height: 132px; }
+.cta__text { flex: 1 1 22rem; min-width: 0; }
+.cta__text h2 {
+  margin: 0 0 12px;
+  font-size: clamp(1.75rem, 1.3rem + 1.6vw, 2.625rem);
+  font-weight: 400;
+  line-height: 1.12;
 }
-.cta__panel .btn:not(.btn--primary) { background: transparent; border-color: rgba(255, 255, 255, .35); color: #fafafa; }
-.cta__panel .btn:not(.btn--primary):hover:not(:disabled) { background: rgba(255, 255, 255, .1); }
-.cta__panel h2 {
-  max-width: 20ch;
-  margin: 0 auto 16px;
-  font-size: clamp(1.75rem, 1.25rem + 2vw, 2.5rem);
-  font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: -.02em;
-  text-wrap: balance;
-}
-.cta__panel p { max-width: 48ch; margin: 0 auto 32px; color: rgba(250, 250, 250, .74); font-size: 1.125rem; text-wrap: pretty; }
-.cta__panel .btn:focus-visible { outline-color: #fafafa; }
-.cta__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.cta__text p { max-width: 48ch; color: var(--text-muted); }
+.cta__actions { display: flex; flex-wrap: wrap; gap: 12px; }
 
-/* ---------------- 7. Footer ---------------- */
+/* ---------------- Footer ---------------- */
 
-.site-footer { padding: 32px 0 48px; }
+.site-footer { padding: 0 0 48px; }
 .site-footer__inner {
   display: flex;
   flex-wrap: wrap;
@@ -547,13 +360,13 @@ p { margin: 0; }
 
 .legal { max-width: calc(70ch + 2 * var(--gutter)); padding-top: 48px; padding-bottom: 96px; }
 .legal h1 {
-  font-size: clamp(2rem, 1.5rem + 2vw, 2.75rem);
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -.025em;
-  margin-bottom: 8px;
+  font-size: clamp(2.25rem, 1.6rem + 2.4vw, 3.25rem);
+  font-weight: 300;
+  line-height: 1.08;
+  letter-spacing: -.03em;
+  margin-bottom: 12px;
 }
-.legal h2 { font-size: 1.375rem; font-weight: 700; margin: 48px 0 16px; scroll-margin-top: calc(var(--header-h) + 16px); }
+.legal h2 { font-size: 1.5rem; font-weight: 500; letter-spacing: -.015em; margin: 48px 0 16px; }
 .legal h3 { font-size: 1.0625rem; font-weight: 600; margin: 24px 0 8px; }
 .legal p, .legal li, .legal address { line-height: 1.6; }
 .legal p + p, .legal p + ul, .legal ul + p, .legal ol + p { margin-top: 16px; }
@@ -569,7 +382,7 @@ p { margin: 0; }
   margin-top: 24px;
   padding: 24px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 20px;
   background: var(--surface);
 }
 .legal__box ul { margin-top: 8px; }
@@ -583,10 +396,10 @@ p { margin: 0; }
 .notfound h1 {
   max-width: 16ch;
   margin-bottom: 16px;
-  font-size: clamp(2.25rem, 1.5rem + 3vw, 3.5rem);
-  font-weight: 700;
-  line-height: 1.05;
-  letter-spacing: -.03em;
+  font-size: clamp(2.625rem, 1.6rem + 4.2vw, 4.5rem);
+  font-weight: 300;
+  line-height: 1.04;
+  letter-spacing: -.035em;
   text-wrap: balance;
 }
 .notfound__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
@@ -604,5 +417,4 @@ p { margin: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   .js .reveal { opacity: 1; transform: none; transition: none; }
-  .btn--primary.btn--xl:hover:not(:disabled) { transform: none; }
 }

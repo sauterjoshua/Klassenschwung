@@ -6,23 +6,29 @@
   <meta name="color-scheme" content="light dark">
   <!-- Skripte nur von hier, Netzwerk nur zu Supabase (wss: Live-Updates der Klassenansicht). Wird hCaptcha aktiviert, hier https://js.hcaptcha.com bzw. https://*.hcaptcha.com bei script-src, frame-src, style-src und connect-src ergaenzen. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; media-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'">
-  <meta name="description" content="BehaviourTracker – Klassen, Unterrichte und Fokus-Wald.">
+  <meta name="description" content="Klassenschwung – Klassen, Unterrichte und Fokus-Wald.">
   <meta name="robots" content="noindex">
-  <title>BehaviourTracker</title>
+  <title>Klassenschwung</title>
+  <meta name="theme-color" content="#f5f7f4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e1310" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="preload" href="./fonts/plex-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
   <header class="topbar" id="topbar" hidden>
+    <!-- Hinweiszeile (Stunde laut Stundenplan bzw. Gastmodus), Segment-Schalter,
+         Schnellstart und Konto-Menue baut app.js auf. -->
+    <p class="hint" id="topHint" hidden></p>
     <div class="topbar__inner">
-      <button class="topbar__back" id="backBtn" type="button" hidden aria-label="Zurück">&#8592;</button>
-      <a class="brand topbar__brand" href="#/" aria-label="BehaviourTracker – Heute">
-        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect class="brand-mark__a" x="3" y="17" width="7" height="12" rx="2"/><rect class="brand-mark__b" x="12.5" y="10" width="7" height="19" rx="2"/><rect class="brand-mark__c" x="22" y="3" width="7" height="26" rx="2"/></svg>
-        <span class="topbar__brandname">BehaviourTracker</span>
-      </a>
-      <!-- Hauptnavigation, Jetzt-Hinweis, Schnellstart und Konto-Menue baut app.js auf. -->
-      <nav class="topnav" id="topnav" aria-label="Hauptnavigation"></nav>
+      <div class="topbar__lead">
+        <button class="topbar__back" id="backBtn" type="button" hidden aria-label="Zurück">&#8592;</button>
+        <a class="brand topbar__brand" href="#/" aria-label="Klassenschwung – Heute">
+          <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect class="brand-mark__a" x="3" y="17" width="7" height="12" rx="2"/><rect class="brand-mark__b" x="12.5" y="10" width="7" height="19" rx="2"/><rect class="brand-mark__c" x="22" y="3" width="7" height="26" rx="2"/></svg>
+          <span class="topbar__brandname">Klassenschwung</span>
+        </a>
+      </div>
+      <nav class="topnav seg" id="topnav" aria-label="Hauptnavigation"></nav>
       <div class="topbar__actions" id="topbarActions"></div>
     </div>
   </header>

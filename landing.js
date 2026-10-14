@@ -1,4 +1,4 @@
-/* BehaviourTracker – Startseite. Als Datei statt inline, damit die
+/* Klassenschwung – Startseite. Als Datei statt inline, damit die
    Content-Security-Policy ohne 'unsafe-inline' fuer Skripte auskommt.
    Wird synchron im <head> geladen (die Weiterleitung soll vor dem
    ersten Zeichnen greifen). */
@@ -30,4 +30,20 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }, { rootMargin: "0px 0px -10% 0px", threshold: 0.1 });
   items.forEach(function (el) { io.observe(el); });
+
+  // Segment-Schalter: markiert den Abschnitt, der gerade auf Hoehe der
+  // Bildschirmmitte liegt (im Hero und am Seitenende keiner).
+  var links = Array.prototype.slice.call(document.querySelectorAll('.site-nav a[href^="#"]'));
+  var inBand = {};
+  var spy = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) { inBand[entry.target.id] = entry.isIntersecting; });
+    links.forEach(function (link) {
+      if (inBand[link.hash.slice(1)]) link.setAttribute("aria-current", "location");
+      else link.removeAttribute("aria-current");
+    });
+  }, { rootMargin: "-40% 0px -55% 0px" });
+  links.forEach(function (link) {
+    var target = document.getElementById(link.hash.slice(1));
+    if (target) spy.observe(target);
+  });
 });
