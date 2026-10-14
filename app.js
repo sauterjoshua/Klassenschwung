@@ -533,11 +533,32 @@ function termsCheck(input) {
       "."));
 }
 
-/* Registrierung in der App. Solange das Projekt privat ist, false: Zugaenge
-   legt der Betreiber im Supabase-Dashboard an (Authentication -> Users ->
-   Add user). Zusaetzlich muss dort "Allow new users to sign up" aus sein,
-   sonst ginge eine Registrierung weiterhin direkt ueber die API. */
-const SIGNUP_OPEN = false;
+/* Registrieren geht nur mit Einladungslink (app.html?einladung=<code>).
+   Geprueft wird in der Datenbank (Migration 0011, Trigger auf auth.users);
+   die App fragt vorher nur nach, ob der Link noch gilt. */
+const INVITE_PARAM = "einladung";
+
+function inviteFromUrl() {
+  const code = new URLSearchParams(window.location.search).get(INVITE_PARAM) ?? "";
+  return /^[0-9a-f]{32}$/.test(code) ? code : null;
+}
+
+function inviteLink(code) {
+  return new URL(`app.html?${INVITE_PARAM}=${code}`, window.location.href).href;
+}
+
+/** Nach dem Registrieren den Code aus der Adresszeile nehmen. */
+function dropInviteFromUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete(INVITE_PARAM);
+  history.replaceState(history.state, "", url.href);
+}
+
+const INVITE_PROBLEMS = {
+  used: "Dieser Einladungslink wurde schon benutzt. Wenn das dein Konto ist, melde dich einfach an.",
+  expired: "Dieser Einladungslink ist abgelaufen. Bitte frag nach einem neuen.",
+  unknown: "Diesen Einladungslink gibt es nicht. Bitte prüfe, ob er vollständig kopiert wurde."
+};
 
 const termsAccepted = () => state.session?.user?.user_metadata?.terms_version === TERMS_VERSION;
 
@@ -605,8 +626,7 @@ function renderAuth() {
 
   let mode = "signin";
   let captchaWidget = null;
-  // Der Button "Kostenlos starten" der Startseite verlinkt auf app.html?registrieren.
-  const wantsSignup = SIGNUP_OPEN && new URLSearchParams(window.location.search).has("registrieren");
+  const invite = inviteFromUrl();
 
   const errorBox = h("div", { class: "error-box", hidden: true });
   const emailInput = h("input", {
@@ -645,7 +665,7 @@ function renderAuth() {
   }
   tabSignin.addEventListener("click", () => setMode("signin"));
   tabSignup.addEventListener("click", () => setMode("signup"));
-  if (wantsSignup) setMode("signup");
+  if (invite) setMode("signup");
 
   function fail(message) {
     errorBox.textContent = message;
@@ -653,7 +673,7 @@ function renderAuth() {
   }
 
   const form = h("form", { class: "card" },
-    SIGNUP_OPEN ? h("div", { class: "auth__tabs" }, tabSignin, tabSignup) : null,
+    invite ? h("div", { class: "auth__tabs" }, tabSignin, tabSignup) : null,
     errorBox,
     h("label", { class: "field" }, h("span", { class: "field__label" }, "E-Mail"), emailInput),
     h("label", { class: "field" }, h("span", { class: "field__label" }, "Passwort"), passwordInput),
@@ -693,9 +713,19 @@ function renderAuth() {
         const { data, error } = await sb.auth.signUp({
           email, password,
           // Zeitpunkt und Fassung der akzeptierten Nutzungsbedingungen als Nachweis
-          options: { data: { nickname, terms_version: TERMS_VERSION, terms_accepted_at: new Date().toISOString() }, captchaToken }
+          options: {
+            data: { nickname, invite, terms_version: TERMS_VERSION, terms_accepted_at: new Date().toISOString() },
+            captchaToken
+          }
         });
-        if (error) throw error;
+        if (error) {
+          // Lehnt der Trigger ab, meldet Supabase nur "Database error saving new user".
+          if (/database error/i.test(error.message ?? "")) {
+            throw new Error("Registrieren hat nicht geklappt: Der Einladungslink ist ungültig, abgelaufen oder schon benutzt.");
+          }
+          throw error;
+        }
+        dropInviteFromUrl();
         if (!data.session) {
           toast("Konto erstellt. Bitte E-Mail bestätigen und danach anmelden.");
           setMode("signin");
@@ -715,10 +745,13 @@ function renderAuth() {
     }
   });
 
-  // Solange keine Registrierung moeglich ist: Hinweis, und was ohne Konto geht.
-  const privateNote = SIGNUP_OPEN ? null : h("section", { class: "card auth__note" },
+  // Ohne Einladung: Hinweis, und was ohne Konto geht.
+  const inviteNote = h("section", { class: "card auth__note" },
+    h("p", { class: "auth__note-tag" }, "Einladung"),
+    h("p", {}, "Du wurdest zu Klassenschwung eingeladen. Lege hier dein Konto an."));
+  const privateNote = invite ? inviteNote : h("section", { class: "card auth__note" },
     h("p", { class: "auth__note-tag" }, "Privates Projekt"),
-    h("p", {}, "Anmelden können nur eingeladene Personen. Eine Registrierung ist nicht möglich."),
+    h("p", {}, "Ein Konto anlegen kann nur, wer einen Einladungslink bekommen hat."),
     h("p", { class: "muted small" }, "Ohne Anmeldung kannst du den Fokus-Wald nutzen und einen Probe-Unterricht ausprobieren."),
     h("div", { class: "row" },
       h("a", { class: "btn", href: "#/focus" }, "Fokus-Wald"),
@@ -734,6 +767,17 @@ function renderAuth() {
       form,
       h("a", { class: "auth__home", href: "./" }, "\u2190 Zur Startseite"))
   );
+
+  // Gilt der Link noch? Sonst gleich sagen statt erst nach dem Absenden.
+  if (invite) {
+    sb.rpc("invite_status", { p_code: invite }).then(({ data, error }) => {
+      if (error || !INVITE_PROBLEMS[data] || !inviteNote.isConnected) return;
+      inviteNote.replaceChildren(
+        h("p", { class: "auth__note-tag" }, "Einladung"),
+        h("p", {}, INVITE_PROBLEMS[data]));
+      setMode("signin");
+    });
+  }
 
   if (captchaEnabled()) {
     waitForHcaptcha()
@@ -912,14 +956,19 @@ const remoteApi = {
   },
 
   async listFocusClasses() {
-    const classes = unwrap(await sb.from("classes")
-      .select("id, name, focus_reward, focus_reward_goal, focus_reward_offset, focus_trees(id, goal_seconds, created_at)")
-      .order("name"));
+    const select = (trees) => sb.from("classes")
+      .select(`id, name, focus_reward, focus_reward_goal, focus_reward_offset, focus_trees(${trees})`)
+      .order("name");
+    let result = await select("id, goal_seconds, open_goal, created_at");
+    // Ohne Migration 0010 gibt es "open_goal" noch nicht: Baeume dann ohne Voegel.
+    if (result.error?.code === "42703") result = await select("id, goal_seconds, created_at");
+    const classes = unwrap(result);
     // Gepflanzt, aber wegen schlechten WLANs noch nicht uebertragen: schon mitzaehlen.
     for (const op of queue.ops.filter((o) => o.kind === "tree")) {
       const cls = classes.find((c) => c.id === op.classId);
       if (cls && !cls.focus_trees.some((t) => t.id === op.treeId)) {
-        cls.focus_trees.push({ id: op.treeId, goal_seconds: op.seconds, created_at: new Date(op.at).toISOString() });
+        cls.focus_trees.push({ id: op.treeId, goal_seconds: op.seconds, open_goal: op.open === true,
+          created_at: new Date(op.at).toISOString() });
       }
     }
     return classes;
@@ -1014,7 +1063,8 @@ function readGuestForest() {
     const trees = (Array.isArray(c.focus_trees) ? c.focus_trees : [])
       .filter((t) => isGuestId(t?.id) && !Number.isNaN(Date.parse(t?.created_at)))
       .slice(-GUEST_MAX_TREES)
-      .map((t) => ({ id: t.id, goal_seconds: clampInt(t.goal_seconds, 60, 7200, 60), created_at: t.created_at }));
+      .map((t) => ({ id: t.id, goal_seconds: clampInt(t.goal_seconds, 60, 7200, 60), open_goal: t.open_goal === true,
+        created_at: t.created_at }));
     return [{
       id: c.id,
       name,
@@ -1120,8 +1170,8 @@ const guestApi = {
     return readGuestForest().sort((a, b) => a.name.localeCompare(b.name, "de"));
   },
 
-  async plantTree(classId, goalSeconds) {
-    const tree = { id: guestId(), goal_seconds: clampInt(goalSeconds, 60, 7200, 60), created_at: new Date().toISOString() };
+  async plantTree(classId, goalSeconds, open = false) {
+    const tree = { id: guestId(), goal_seconds: clampInt(goalSeconds, 60, 7200, 60), open_goal: open, created_at: new Date().toISOString() };
     updateGuestClass(classId, (cls) => {
       cls.focus_trees.push(tree);
       cls.focus_trees = cls.focus_trees.slice(-GUEST_MAX_TREES);
@@ -1311,9 +1361,10 @@ async function sendOp(op) {
 
   if (op.kind === "tree") {
     // Feste ID: kommt die Antwort nicht an und es wird erneut gesendet, gibt es keinen zweiten Baum (23505).
-    const result = await limited(sb.from("focus_trees").insert({
-      id: op.treeId, class_id: op.classId, goal_seconds: op.seconds, created_at: new Date(op.at).toISOString()
-    }));
+    const row = { id: op.treeId, class_id: op.classId, goal_seconds: op.seconds, created_at: new Date(op.at).toISOString() };
+    let result = await limited(sb.from("focus_trees").insert(op.open ? { ...row, open_goal: true } : row));
+    // Ohne Migration 0010 fehlt "open_goal": den Baum trotzdem pflanzen, nur ohne Voegel.
+    if (op.open && result.error?.code === "PGRST204") result = await limited(sb.from("focus_trees").insert(row));
     return result.error?.code === "23505" ? { error: null, status: 201 } : result;
   }
   if (op.kind === "presence") {
@@ -2081,7 +2132,8 @@ async function renderSettings() {
       h("div", { class: "stack" },
         scheduleMigrationHint(),
         paletteCard(),
-        accountCard()));
+        accountCard(),
+        inviteCard()));
     return;
   }
 
@@ -2288,7 +2340,8 @@ async function renderSettings() {
         weekEl),
       autoEndCard,
       paletteCard(),
-      accountCard()));
+      accountCard(),
+      inviteCard()));
 }
 
 /** Farbwelt-Auswahl. Gespeichert im Auth-Profil (user_metadata.palette)
@@ -2375,6 +2428,97 @@ function accountCard() {
       "herunterladen oder dein Konto samt aller Daten löschen."),
     h("p", { class: "muted small" }, SCHOOL_YEAR_DELETE_INFO),
     h("div", { class: "row" }, exportBtn, deleteBtn));
+}
+
+/**
+ * Einladungslinks erstellen (nur fuer Admins, Tabelle admins aus
+ * Migration 0011). Bleibt unsichtbar, solange die Pruefung laeuft, fuer
+ * alle anderen und wenn die Migration fehlt.
+ */
+function inviteCard() {
+  const noteInput = h("input", {
+    class: "input", type: "text", maxlength: "80", placeholder: "Für wen? (nur für dich sichtbar)",
+    "aria-label": "Notiz zur Einladung"
+  });
+  const createBtn = h("button", { class: "btn btn--primary", type: "submit" }, "Link erstellen");
+  const listEl = h("ul", { class: "list" });
+  const card = h("section", { class: "card", hidden: true },
+    h("h2", {}, "Einladungen"),
+    h("p", { class: "muted small" },
+      "Nur wer einen Einladungslink bekommt, kann ein Konto anlegen. Jeder Link gilt einmal und 14 Tage."),
+    h("form", { class: "row row--form", onsubmit: create }, noteInput, createBtn),
+    listEl);
+
+  async function copy(code) {
+    try {
+      await navigator.clipboard.writeText(inviteLink(code));
+      toast("Einladungslink kopiert.");
+    } catch {
+      window.prompt("Einladungslink zum Kopieren:", inviteLink(code));
+    }
+  }
+
+  function statusText(inv) {
+    if (inv.used_at) return `Benutzt am ${formatDate(inv.used_at)}`;
+    if (new Date(inv.expires_at) < new Date()) return `Abgelaufen am ${formatDate(inv.expires_at)}`;
+    return `Offen bis ${formatDate(inv.expires_at)}`;
+  }
+
+  function draw(invites) {
+    listEl.replaceChildren(...invites.map((inv) => {
+      const open = !inv.used_at && new Date(inv.expires_at) >= new Date();
+      return h("li", { class: "list__item" },
+        h("div", { class: "invite__main" },
+          inv.note || "Ohne Notiz",
+          h("span", { class: "list__sub" }, statusText(inv))),
+        open ? h("button", { class: "btn", type: "button", onclick: () => copy(inv.code) }, "Kopieren") : null,
+        open ? h("button", { class: "btn btn--ghost", type: "button", onclick: () => remove(inv.code) }, "Zurückziehen") : null);
+    }));
+  }
+
+  async function load() {
+    const { data, error } = await sb.rpc("list_invites");
+    if (error) throw error;
+    draw(data ?? []);
+  }
+
+  async function create(event) {
+    event.preventDefault();
+    createBtn.disabled = true;
+    try {
+      const { data, error } = await sb.rpc("create_invite", { p_note: cleanName(noteInput.value, 80) });
+      if (error) throw error;
+      noteInput.value = "";
+      await load();
+      await copy(data.code);
+    } catch (error) {
+      showError(error, "Einladung konnte nicht erstellt werden.");
+    } finally {
+      createBtn.disabled = false;
+    }
+  }
+
+  async function remove(code) {
+    try {
+      const { error } = await sb.rpc("delete_invite", { p_code: code });
+      if (error) throw error;
+      await load();
+      toast("Einladung zurückgezogen.");
+    } catch (error) {
+      showError(error, "Einladung konnte nicht zurückgezogen werden.");
+    }
+  }
+
+  if (!state.guest) {
+    sb.rpc("is_admin").then(async ({ data, error }) => {
+      if (error || data !== true) return;
+      try {
+        await load();
+        card.hidden = false;
+      } catch { /* ohne Liste keine Karte */ }
+    });
+  }
+  return card;
 }
 
 /* -------------------------------------------------------------------
@@ -4391,7 +4535,7 @@ const FOCUS_PROBE = "probelauf";
 /** Route der Uebersicht ueber alle Klassenwaelder (#/focus/waelder). */
 const FOCUS_WALK = "waelder";
 const FOCUS_GOALS_MIN = [3, 5, 10, 15, 20, 30, 45];
-/** Offenes Ziel: der Timer zaehlt hoch, die Baumart richtet sich nach der erreichten Zeit. */
+/** Offenes Ziel: der Timer zaehlt hoch; erst Birke, dann Kirschbaum, dann ziehen Voegel ein. */
 const FOCUS_OPEN = "offen";
 /** Im offenen Modus ist der Baum nach dieser Zeit ausgewachsen (wie beim kuerzesten Ziel). */
 const FOCUS_OPEN_GROWN_SECONDS = FOCUS_GOALS_MIN[0] * 60;
@@ -4433,12 +4577,10 @@ const treesLabel = (n) => (n === 1 ? "1 Baum" : `${n} Bäume`);
 
 /* ---------- Baeume (SVG) ---------- */
 
-/** Logo wie auf der Startseite (index.html): drei Balken in den Zustandsfarben. */
+/** Logo (Kirschbaum mit Amsel) als Kopie aus der Kopfzeile von app.html;
+ * die Amsel fliegt beim Einfuegen neu an (CSS). */
 function brandMark() {
-  return svg("svg", { class: "brand-mark", viewBox: "0 0 32 32", "aria-hidden": "true" },
-    svg("rect", { class: "brand-mark__a", x: 3, y: 17, width: 7, height: 12, rx: 2 }),
-    svg("rect", { class: "brand-mark__b", x: 12.5, y: 10, width: 7, height: 19, rx: 2 }),
-    svg("rect", { class: "brand-mark__c", x: 22, y: 3, width: 7, height: 26, rx: 2 }));
+  return brandLinkEl.querySelector(".brand-mark").cloneNode(true);
 }
 
 /**
@@ -4498,12 +4640,6 @@ const TREE_ORDER = Object.keys(TREE_SPECIES);
 
 function speciesForGoal(seconds) {
   return [...TREE_ORDER].reverse().find((key) => seconds >= TREE_SPECIES[key].from);
-}
-
-/** Naechste Baumart im offenen Modus, oder null bei der seltensten. */
-function nextSpecies(seconds) {
-  const next = TREE_ORDER.find((key) => seconds < TREE_SPECIES[key].from);
-  return next ? { species: next, seconds: TREE_SPECIES[next].from } : null;
 }
 
 const circles = (list) => list.map(([cx, cy, r]) => ({ cx, cy, r }));
@@ -4606,7 +4742,147 @@ const TREE_SHAPES = {
   }
 };
 
-const TREE_MOODS = ["calm", "uneasy", "loud", "withered", "done", "paused"];
+const TREE_MOODS = ["calm", "uneasy", "loud", "withered", "banked", "done", "paused"];
+
+/* ---------- Offenes Ziel: Kirschbaum mit Voegeln ---------- */
+
+/** Ab hier kommen im offenen Modus die Voegel, dann bauen sie ein Nest. */
+const FOCUS_BIRDS_FROM = 10 * 60;
+const FOCUS_NEST_FROM = 15 * 60;
+/** Danach kommt in diesem Abstand ein Vogel dazu: erst Kueken, dann weitere Amseln. */
+const FOCUS_MORE_BIRDS_FROM = 20 * 60;
+const FOCUS_MORE_BIRDS_EVERY = 5 * 60;
+
+// Koordinaten wie TREE_SHAPES.kirsch; [x, y, Blickrichtung] mit Fuessen bei (x, y).
+const BIRD_PERCHES = [[76, 53, 1], [124, 53, -1], [57, 82, 1], [143, 80, -1], [100, 37, 1]];
+const BIRD_CHICKS = [[93, 120], [100, 119], [107, 120]];
+const BIRD_FLYERS = [[34, 44], [168, 32]];
+/** Die ersten zwei Sitzplaetze belegen die Voegel, die zuerst kommen. */
+const BIRD_EXTRA = BIRD_CHICKS.length + (BIRD_PERCHES.length - 2) + BIRD_FLYERS.length;
+
+const BIRD_FACTS = {
+  birds: "Die Vogelkirsche heißt so, weil Amseln, Drosseln und Stare ihre Früchte lieben. " +
+    "Die Kerne lassen sie woanders fallen – so pflanzen Vögel neue Kirschbäume.",
+  nest: "Amseln bauen ihr Nest aus Zweigen, Gras und Moos und kleiden es innen mit Lehm aus. " +
+    "Meist legt das Weibchen 3 bis 5 Eier.",
+  chicks: "Nach etwa zwei Wochen schlüpfen die Küken. Sie sind zuerst nackt und blind, " +
+    "und die Eltern fliegen viele Male am Tag mit Futter zum Nest."
+};
+
+/** Stufe im offenen Modus: Baumart, Voegel, Nest und zusaetzliche Voegel. */
+function openStage(seconds) {
+  const extra = seconds < FOCUS_MORE_BIRDS_FROM ? 0
+    : Math.min(BIRD_EXTRA, 1 + Math.floor((seconds - FOCUS_MORE_BIRDS_FROM) / FOCUS_MORE_BIRDS_EVERY));
+  return {
+    species: speciesForGoal(Math.min(seconds, TREE_SPECIES.kirsch.from)),
+    birds: seconds >= FOCUS_BIRDS_FROM,
+    nest: seconds >= FOCUS_NEST_FROM,
+    extra
+  };
+}
+
+/** Naechster Schritt im offenen Modus, oder null wenn alles erreicht ist. */
+function nextOpenStep(seconds) {
+  if (seconds < TREE_SPECIES.kirsch.from) return { seconds: TREE_SPECIES.kirsch.from, text: "Kirschbaum" };
+  if (seconds < FOCUS_BIRDS_FROM) return { seconds: FOCUS_BIRDS_FROM, text: "Vögel" };
+  if (seconds < FOCUS_NEST_FROM) return { seconds: FOCUS_NEST_FROM, text: "Nest" };
+  const { extra } = openStage(seconds);
+  if (extra >= BIRD_EXTRA) return null;
+  return {
+    seconds: FOCUS_MORE_BIRDS_FROM + extra * FOCUS_MORE_BIRDS_EVERY,
+    text: extra < BIRD_CHICKS.length ? "Küken" : "noch ein Vogel"
+  };
+}
+
+function birdCount(stage) {
+  return stage.birds ? 2 + stage.extra : 0;
+}
+
+/** Wer im Baum wohnt, als Satz fuer Steckbrief und Beschriftung. */
+function describeBirds(stage) {
+  if (!stage.birds) return "";
+  if (!stage.nest) return "Zwei Amseln wohnen darin.";
+  const chicks = Math.min(stage.extra, BIRD_CHICKS.length);
+  const more = stage.extra - chicks;
+  const parts = [];
+  if (chicks) parts.push(chicks === 1 ? "ein Küken ist geschlüpft" : `${chicks} Küken sind geschlüpft`);
+  if (more) parts.push(more === 1 ? "ein weiterer Vogel ist eingezogen" : `${more} weitere Vögel sind eingezogen`);
+  return `Zwei Amseln haben darin ein Nest gebaut${parts.length ? `, ${parts.join(" und ")}` : ""}.`;
+}
+
+/**
+ * Ebenen eines Vogels, jede mit eigener Animation:
+ * Position (SVG-Attribut) > .bird (Ankommen) > .bird__mood (Laerm) > .bird__idle (Alltag).
+ * timing = Dauer und Versatz des Alltags, damit nicht alle Voegel gleichzeitig picken.
+ */
+function birdLayers(transform, kind, timing, flight, ...parts) {
+  return svg("g", { transform },
+    svg("g", { class: `bird bird--${kind}`, style: flight },
+      svg("g", { class: "bird__mood" },
+        svg("g", { class: "bird__idle", style: timing }, ...parts))));
+}
+
+/** Amsel, sitzend; Fuesse bei (0, 0), schaut nach rechts und kommt von hinten angeflogen. */
+function perchedBird(x, y, dir, timing) {
+  return birdLayers(`translate(${x} ${y}) scale(${1.3 * dir} 1.3)`, "perched", timing, "--fx:-150px;--fy:-90px",
+    svg("path", { d: "M-1 0 V-3 M2 0 V-3", stroke: "#d98a2b", "stroke-width": 1, "stroke-linecap": "round" }),
+    svg("polygon", { points: "-4,-6 -13,-3 -12,-8", fill: "#1f1f1f" }),
+    svg("ellipse", { cx: 0, cy: -6, rx: 6.5, ry: 4.5, fill: "#2a2a2a" }),
+    svg("ellipse", { class: "bird__wing", cx: -1.5, cy: -6.8, rx: 4.8, ry: 2.6, fill: "#3d3d3d" }),
+    svg("g", { class: "bird__head" },
+      svg("circle", { cx: 5, cy: -11, r: 3.6, fill: "#2a2a2a" }),
+      svg("polygon", { points: "8,-12.4 12.5,-11 8,-9.8", fill: "#f2a33a" }),
+      svg("circle", { cx: 6, cy: -12, r: 1, fill: "#f2a33a" })));
+}
+
+/** Kueken im Nest; sperrt ab und zu den Schnabel auf. */
+function chick(x, y, timing) {
+  return birdLayers(`translate(${x} ${y})`, "chick", timing, "",
+    svg("circle", { cx: 0, cy: 0, r: 3.2, fill: "#7d6650" }),
+    svg("polygon", { class: "bird__beak", points: "-2,-2 0,-8 2,-2", fill: "#f6d33c" }));
+}
+
+function flyingBird(x, y, from, timing) {
+  return birdLayers(`translate(${x} ${y})`, "flying", timing, `--fx:${from}px;--fy:-40px`,
+    svg("path", { class: "bird__wings", d: "M-9 0 Q-4.5 -6 0 0 Q4.5 -6 9 0", fill: "none", stroke: "#2a2a2a",
+      "stroke-width": 2.2, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+}
+
+/**
+ * Haengt Voegel und Nest an einen Kirschbaum aus buildTree. Sitzende Voegel
+ * und Nest schwingen mit dem Baum, fliegende nicht. set(stage) aus openStage.
+ * seed: fester Zufall pro Baum, damit jeder Vogel seinen eigenen Takt hat.
+ */
+function attachBirds(treeEl, seed = "") {
+  let n = 0;
+  const timing = () => {
+    n += 1;
+    const t = 7 + hashUnit(seed, 10 + n) * 8;
+    return `--t:${t.toFixed(1)}s;--delay:${(-hashUnit(seed, 40 + n) * t).toFixed(1)}s`;
+  };
+  const nestBack = svg("ellipse", { cx: 100, cy: 124, rx: 13, ry: 3.4, fill: "#3f2a1a" });
+  const chicks = BIRD_CHICKS.map(([x, y]) => chick(x, y, timing()));
+  const nestFront = svg("g", {},
+    svg("path", { d: "M85 123 Q100 141 115 123 Z", fill: "#7a5230" }),
+    svg("path", { d: "M87 126 L111 129 M89 131 L113 126 M93 134 L108 132", fill: "none", stroke: "#a57846",
+      "stroke-width": 1.2, "stroke-linecap": "round" }));
+  const nest = svg("g", { class: "bird bird--nest" }, nestBack, chicks, nestFront);
+  const perched = BIRD_PERCHES.map(([x, y, dir]) => perchedBird(x, y, dir, timing()));
+  const flyers = BIRD_FLYERS.map(([x, y]) => flyingBird(x, y, x < 100 ? -120 : 120, timing()));
+
+  treeEl.querySelector(".tree__motion").append(nest, ...perched);
+  treeEl.append(...flyers);
+
+  const on = (g, value) => g.firstChild.classList.toggle("is-on", value);
+  return function set(stage) {
+    // Reihenfolge der Neuankoemmlinge: Kueken, weitere Amseln, dann fliegende.
+    const extraPerched = Math.max(0, stage.extra - chicks.length);
+    nest.classList.toggle("is-on", stage.nest);
+    chicks.forEach((c, i) => on(c, stage.nest && i < stage.extra));
+    perched.forEach((p, i) => on(p, stage.birds && i < 2 + extraPerched));
+    flyers.forEach((f, i) => on(f, i < extraPerched - (perched.length - 2)));
+  };
+}
 
 /**
  * Baut einen Baum, der ueber setProgress(0..1) waechst.
@@ -4675,13 +4951,44 @@ function buildTree(speciesKey, { still = false } = {}) {
   return { el, setProgress, setMood };
 }
 
-function stillTree(speciesKey, heightRem, label) {
+/** stage: Voegel aus openStage (offenes Ziel), seed: ihr fester Takt. */
+function stillTree(speciesKey, heightRem, label, { stage = null, seed = "" } = {}) {
   const tree = buildTree(speciesKey, { still: true });
   tree.setProgress(1);
+  if (stage?.birds) attachBirds(tree.el, seed)(stage);
   tree.el.style.height = `${heightRem.toFixed(2)}rem`;
   tree.el.style.width = `${(heightRem * 200 / 240).toFixed(2)}rem`;
   if (label) tree.el.append(svg("title", {}, label));
   return tree.el;
+}
+
+/** Art eines gepflanzten Baums: offene Ziele ergeben Birke oder Kirschbaum. */
+function treeSpecies(tree) {
+  return tree.open_goal ? openStage(tree.goal_seconds).species : speciesForGoal(tree.goal_seconds);
+}
+
+/** Voegel eines gepflanzten Baums, oder null bei festen Zielen. */
+function treeStage(tree) {
+  return tree.open_goal ? openStage(tree.goal_seconds) : null;
+}
+
+function treeLabel(tree, sep = " · ") {
+  const stage = treeStage(tree);
+  const count = stage ? birdCount(stage) : 0;
+  return [TREE_SPECIES[treeSpecies(tree)].name + (count ? ` mit ${count} Vögeln` : ""),
+    `${Math.round(tree.goal_seconds / 60)} min`, formatDate(tree.created_at)].join(sep);
+}
+
+/** Steckbrief zu einem angetippten Baum im Wald. */
+function plantedTreeCard(tree, options = {}) {
+  const stage = treeStage(tree);
+  return treeFactCard(treeSpecies(tree), {
+    ...options,
+    stage,
+    seed: tree.id,
+    note: `Gepflanzt am ${formatDate(tree.created_at)} nach ${Math.round(tree.goal_seconds / 60)} Minuten Ruhe.` +
+      (stage?.birds ? ` ${describeBirds(stage)}` : "")
+  });
 }
 
 /** Wald einer Klasse; groessere Ziele ergeben groessere Baeume. */
@@ -4691,21 +4998,18 @@ function forestView(trees, { limit = Infinity, scale = 1 } = {}) {
     .slice(-limit);
   return h("div", { class: "forest", role: "img", "aria-label": treesLabel(trees.length) },
     sorted.map((tree) => {
-      const species = speciesForGoal(tree.goal_seconds);
-      const minutes = Math.round(tree.goal_seconds / 60);
       const height = (2.4 + Math.min(1, tree.goal_seconds / 2700) * 2.2) * scale;
-      return stillTree(species, height,
-        `${TREE_SPECIES[species].name} · ${minutes} min · ${formatDate(tree.created_at)}`);
+      return stillTree(treeSpecies(tree), height, treeLabel(tree), { stage: treeStage(tree), seed: tree.id });
     }));
 }
 
 /* ---------- Baum-Steckbriefe ---------- */
 
 /** Steckbrief zum Lernen: Bild, Name, Eckdaten und ein Fakt zur Art. */
-function treeFactCard(speciesKey, { note = null, kicker = "Wusstest du?" } = {}) {
+function treeFactCard(speciesKey, { note = null, kicker = "Wusstest du?", stage = null, seed = "" } = {}) {
   const sp = TREE_SPECIES[speciesKey];
   return h("article", { class: "treefact" },
-    h("div", { class: "treefact__pic" }, stillTree(speciesKey, 6)),
+    h("div", { class: "treefact__pic" }, stillTree(speciesKey, 6, null, { stage, seed })),
     h("div", { class: "treefact__body" },
       h("p", { class: "treefact__kicker" }, kicker),
       h("h3", {}, sp.full, h("span", { class: "treefact__latin" }, sp.latin)),
@@ -4717,13 +5021,18 @@ function treeFactCard(speciesKey, { note = null, kicker = "Wusstest du?" } = {})
       note ? h("p", { class: "treefact__note" }, note) : null));
 }
 
-/** Alle Arten in Wachstumsreihenfolge – zeigt, welcher Baum ab wann waechst. */
-function treeLadder() {
-  return h("ol", { class: "ladder" }, TREE_ORDER.map((key) =>
-    h("li", {},
-      stillTree(key, 3.2),
-      h("strong", {}, TREE_SPECIES[key].name),
-      h("span", {}, `ab ${Math.max(FOCUS_GOALS_MIN[0], TREE_SPECIES[key].from / 60)} min`))));
+/** Stufen des offenen Ziels: Birke, Kirschbaum, Voegel, Nest, mehr Voegel. */
+function openLadder() {
+  const step = (seconds, label, from) => {
+    const stage = openStage(seconds);
+    return h("li", {}, stillTree(stage.species, 3.2, null, { stage, seed: label }), h("strong", {}, label), h("span", {}, `ab ${from} min`));
+  };
+  return h("ol", { class: "ladder" },
+    step(FOCUS_OPEN_GROWN_SECONDS, "Birke", FOCUS_GOALS_MIN[0]),
+    step(TREE_SPECIES.kirsch.from, "Kirschbaum", TREE_SPECIES.kirsch.from / 60),
+    step(FOCUS_BIRDS_FROM, "Vögel", FOCUS_BIRDS_FROM / 60),
+    step(FOCUS_NEST_FROM, "Nest", FOCUS_NEST_FROM / 60),
+    step(FOCUS_OPEN_MAX_SECONDS, "Mehr Vögel", FOCUS_MORE_BIRDS_FROM / 60));
 }
 
 /* ---------- Waelder: Hain-Layout und Rundgang ---------- */
@@ -4811,10 +5120,11 @@ function groveView(cls, { base = GROVE_BASE_PX, rank = null, onPick = null } = {
     const layout = groveLayout(trees, base);
     plot = h("div", { class: "grove__plot", style: `width:${layout.width.toFixed(0)}px;height:${layout.height.toFixed(0)}px` },
       layout.items.map((item) => {
-        const species = speciesForGoal(item.tree.goal_seconds);
-        const label = `${TREE_SPECIES[species].name}, ${Math.round(item.tree.goal_seconds / 60)} min, ${formatDate(item.tree.created_at)}`;
-        const tree = buildTree(species, { still: true });
+        const label = treeLabel(item.tree, ", ");
+        const tree = buildTree(treeSpecies(item.tree), { still: true });
         tree.setProgress(1);
+        const stage = treeStage(item.tree);
+        if (stage?.birds) attachBirds(tree.el, item.tree.id)(stage);
         const btn = h("button", {
           class: "grove__tree", type: "button", "aria-label": label, title: label,
           style: `left:${item.left.toFixed(1)}px;top:${item.top.toFixed(1)}px;` +
@@ -5100,11 +5410,7 @@ async function renderForestWalk() {
     selected?.classList.remove("is-selected");
     selected = btn;
     btn.classList.add("is-selected");
-    const species = speciesForGoal(tree.goal_seconds);
-    infoEl.replaceChildren(treeFactCard(species, {
-      kicker: `Wald von ${cls.name}`,
-      note: `Gepflanzt am ${formatDate(tree.created_at)} nach ${Math.round(tree.goal_seconds / 60)} Minuten Ruhe.`
-    }));
+    infoEl.replaceChildren(plantedTreeCard(tree, { kicker: `Wald von ${cls.name}` }));
   }
 
   // Auf grossen Bildschirmen (Beamer) duerfen die Baeume groesser sein.
@@ -5133,7 +5439,7 @@ async function renderForestWalk() {
 
   const totalTrees = classes.reduce((sum, c) => sum + (c.focus_trees?.length ?? 0), 0);
   const counts = Object.fromEntries(TREE_ORDER.map((key) => [key, 0]));
-  for (const c of classes) for (const t of c.focus_trees ?? []) counts[speciesForGoal(t.goal_seconds)]++;
+  for (const c of classes) for (const t of c.focus_trees ?? []) counts[treeSpecies(t)]++;
 
   infoEl.append(h("p", { class: "walk__hint" },
     "Klicke einen Baum an, um seinen Steckbrief zu sehen."));
@@ -5216,8 +5522,9 @@ async function renderFocusRoom(classId) {
     const showFact = () => factEl.replaceChildren(goalMinutes === FOCUS_OPEN
       ? h("div", {},
           h("p", { class: "treefact__kicker" }, "Offenes Ziel"),
-          h("p", { class: "muted small" }, "Der Timer zählt hoch, und der Baum wird mit der Zeit zur nächsten Art:"),
-          treeLadder())
+          h("p", { class: "muted small" }, "Der Timer zählt hoch: Erst wächst eine Birke, dann ein Kirschbaum. " +
+            "Bleibt es weiter ruhig, kommen Vögel, bauen ein Nest und werden immer mehr."),
+          openLadder())
       : treeFactCard(speciesForGoal(goalMinutes * 60), { kicker: `Bei ${goalMinutes} min wächst …` }));
 
     const goalButtons = [...FOCUS_GOALS_MIN, FOCUS_OPEN].map((minutes) => {
@@ -5257,7 +5564,7 @@ async function renderFocusRoom(classId) {
       h("p", { class: "muted small" },
         "So lange muss es insgesamt ruhig sein, bis der Baum ausgewachsen ist. " +
         "Wie im echten Wald: Kurze Ziele lassen schnell wachsende Pionierbäume wachsen, lange Ziele die langsamen Waldriesen. " +
-        "„Offen“ zählt hoch, der Baum wird mit der Zeit zur nächsten Art – " +
+        "„Offen“ zählt hoch: Birke, Kirschbaum, dann ziehen Vögel ein – " +
         `gepflanzt wird mit „Baum pflanzen“ (ab ${FOCUS_GOALS_MIN[0]} min).`),
       h("div", { class: "goals" }, goalButtons),
       factEl,
@@ -5307,9 +5614,7 @@ async function renderFocusRoom(classId) {
               picked?.classList.remove("is-selected");
               picked = btn;
               btn.classList.add("is-selected");
-              forestInfo.replaceChildren(treeFactCard(speciesForGoal(tree.goal_seconds), {
-                note: `Gepflanzt am ${formatDate(tree.created_at)} nach ${Math.round(tree.goal_seconds / 60)} Minuten Ruhe.`
-              }));
+              forestInfo.replaceChildren(plantedTreeCard(tree));
             }
           })], { compact: true })
         : emptyView("Noch keine Bäume. Der erste wächst bei der nächsten ruhigen Arbeitsphase."),
@@ -5436,11 +5741,18 @@ async function renderFocusRoom(classId) {
 
     let tree = buildTree(species);
     tree.setProgress(0, { instant: true });
+    // Offen: Voegel am Kirschbaum; null, solange noch die Birke waechst.
+    let setBirds = null;
+    let stage = open ? openStage(0) : null;
 
     const timeEl = h("div", { class: "focus__time" }, formatClock(open ? 0 : goalSeconds));
     const goalEl = h("div", { class: "focus__goal" });
     const factEl = h("div", { class: "focus__fact" });
-    const showFact = () => { factEl.textContent = `Wusstest du? ${TREE_SPECIES[species].fact}`; };
+    const factText = () => !stage?.birds ? TREE_SPECIES[species].fact
+      : stage.extra > 0 ? BIRD_FACTS.chicks
+      : stage.nest ? BIRD_FACTS.nest
+      : BIRD_FACTS.birds;
+    const showFact = () => { factEl.textContent = `Wusstest du? ${factText()}`; };
     showFact();
     const backdropEl = h("div", { class: "focus__backdrop", "aria-hidden": "true" });
     const statusEl = h("div", { class: "focus__status", role: "status", "aria-live": "polite" });
@@ -5531,16 +5843,25 @@ async function renderFocusRoom(classId) {
       meterFill.className = `meter__fill meter__fill--${zone}`;
 
       if (open) {
-        // Beim Erreichen einer Schwelle wird der Baum zur naechsten Art.
-        if (phase === "running" && speciesForGoal(elapsed) !== species) {
-          setSpecies(speciesForGoal(elapsed), elapsed >= FOCUS_OPEN_GROWN_SECONDS ? 1 : 0);
+        // Beim Erreichen einer Schwelle: Kirschbaum, dann Voegel, Nest und mehr Voegel.
+        if (phase === "running") {
+          const now = openStage(elapsed);
+          if (now.species !== species) setSpecies(now.species, elapsed >= FOCUS_OPEN_GROWN_SECONDS ? 1 : 0);
+          if (now.birds !== stage.birds || now.nest !== stage.nest || now.extra !== stage.extra) {
+            stage = now;
+            setBirds?.(stage);
+            showFact();
+          }
         }
-        const next = nextSpecies(elapsed);
+        const next = nextOpenStep(elapsed);
+        const count = birdCount(stage);
+        const current = [TREE_SPECIES[species].name, stage.nest ? "Nest" : null,
+          count ? `${count} Vögel` : null].filter(Boolean).join(" · ");
         timeEl.textContent = formatClock(Math.floor(elapsed));
         progressFill.style.width = `${(next ? elapsed / next.seconds : 1) * 100}%`;
         goalEl.textContent = next
-          ? `${TREE_SPECIES[species].name} · ${TREE_SPECIES[next.species].name} ab ${next.seconds / 60} min`
-          : `${TREE_SPECIES[species].name} · seltenste Art erreicht`;
+          ? `${current} · ${next.text} ab ${next.seconds / 60} min`
+          : `${current} · alle Vögel sind da`;
         plantBtn.disabled = phase !== "running" || elapsed < FOCUS_OPEN_GROWN_SECONDS;
         if (phase !== "withering") tree.setProgress(elapsed / FOCUS_OPEN_GROWN_SECONDS);
       } else {
@@ -5574,6 +5895,9 @@ async function renderFocusRoom(classId) {
       replacement.setProgress(progress, { instant: true });
       tree.el.replaceWith(replacement.el);
       tree = replacement;
+      setBirds = species === "kirsch" ? attachBirds(tree.el, String(round)) : null;
+      stage = openStage(elapsed);
+      setBirds?.(stage);
       showFact();
       lastMood = "";
     }
@@ -5613,10 +5937,10 @@ async function renderFocusRoom(classId) {
       try {
         let planted;
         if (state.guest) {
-          planted = await api.plantTree(cls.id, seconds);
+          planted = await api.plantTree(cls.id, seconds, open);
         } else {
-          planted = { id: uuid(), goal_seconds: seconds, created_at: new Date().toISOString() };
-          enqueue({ kind: "tree", classId: cls.id, treeId: planted.id, seconds });
+          planted = { id: uuid(), goal_seconds: seconds, open_goal: open, created_at: new Date().toISOString() };
+          enqueue({ kind: "tree", classId: cls.id, treeId: planted.id, seconds, open });
         }
         cls.focus_trees.push(planted);
         return cls.focus_trees.length;
@@ -5638,7 +5962,7 @@ async function renderFocusRoom(classId) {
       celebration = h("div", { class: "celebrate", role: "dialog", "aria-modal": "true", "aria-label": "Baum gepflanzt" },
         confettiView(),
         h("div", { class: "celebrate__panel" },
-          stillTree(species, 9),
+          celebrationTree(),
           h("h2", {}, number ? `${TREE_SPECIES[species].article} ${TREE_SPECIES[species].name} ist gepflanzt!` : "Geschafft!"),
           h("p", {}, message),
           h("p", { class: "celebrate__fact" },
@@ -5654,6 +5978,10 @@ async function renderFocusRoom(classId) {
             nextBtn)));
       root.append(celebration);
       nextBtn.focus();
+    }
+
+    function celebrationTree() {
+      return stillTree(species, 9, null, { stage: open ? openStage(plantedSeconds) : null, seed: String(round) });
     }
 
     function drawFooter() {

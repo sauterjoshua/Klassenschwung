@@ -1,5 +1,41 @@
 # Klassenschwung
 
+Klassenschwung ist eine Web-App für Lehrkräfte mit zwei Werkzeugen: dem
+Fokus-Wald für ruhige Stillarbeit und einem Board für den Unterricht, das
+zeigt, wer gerade gut arbeitet. Beides läuft direkt im Browser, ohne
+Installation.
+
+## Überblick
+
+### Fokus-Wald
+
+Der Fokus-Wald ist ein Lautstärke-Monitor für den Beamer. Solange es in der
+Klasse ruhig ist, wächst ein Baum, und wird es zu laut, vertrocknet er. Jeder
+fertige Baum kommt dauerhaft in den Wald der Klasse. Kurze Ziele ergeben
+schnell wachsende Arten wie die Birke, lange Ziele die langsamen Riesen bis
+zum Mammutbaum, und zu jeder Art gibt es einen Steckbrief zum Vorlesen. Beim
+offenen Ziel zählt der Timer hoch: Aus der Birke wird ein Kirschbaum, dann
+ziehen Amseln ein, bauen ein Nest und werden mit der Zeit immer mehr. Die
+Klassen vergleichen sich in einem Ranking und arbeiten auf eine selbst
+gewählte Belohnung hin. Das Mikrofon misst nur die Lautstärke im Browser, es
+wird nichts aufgenommen. Der Fokus-Wald funktioniert auch ohne Konto.
+
+![Fokus-Phase im offenen Ziel nach 46 Minuten: Kirschbaum mit Nest, Küken und Amseln, dahinter blass der Wald der Klasse](docs/screenshots/fokus-phase.png)
+
+### Unterricht
+
+Im Unterricht hat jede Schülerin und jeder Schüler einen von drei Zuständen:
+"Start", "Du arbeitest gut" oder "Du arbeitest großartig". Die Lehrkraft
+zieht die Namen auf dem Tablet in die passende Spalte oder tippt sie in einer
+sortierten Ansicht an. Die App misst dabei, wie lange jemand gut oder
+großartig gearbeitet hat. Die Zeit im Startzustand wird nicht gespeichert.
+Dazu kommen eine Auswertung je Klasse mit Export als PDF oder CSV, ein
+Sitzplan, der Import von Klassenliste und Stundenplan und eine
+Klassenansicht für den Beamer. Für den Unterricht braucht man ein Konto, das
+Board lässt sich aber ohne Anmeldung ausprobieren.
+
+![Board in der Kanban-Ansicht: vier Namen am Start, fünf arbeiten gut, drei großartig](docs/screenshots/unterricht-kanban.png)
+
 ---
 
 ## Ohne Anmeldung
@@ -20,10 +56,11 @@ laufen über `guestApi` in `app.js`.
 
 ## Anmelden
 
-Klassenschwung ist derzeit ein **privates Projekt** (siehe unten): keine
-öffentliche Registrierung, Zugänge werden persönlich vergeben. Wer auf
-**Anmelden** tippt, sieht zuerst diesen Hinweis und die Links zu den
-Funktionen ohne Konto, darunter das Anmeldeformular.
+Klassenschwung ist derzeit ein **privates Projekt** (siehe unten): Ein
+Konto anlegen kann nur, wer einen **Einladungslink** bekommen hat
+(`app.html?einladung=…`). Wer ohne Link auf **Anmelden** tippt, sieht
+zuerst diesen Hinweis und die Links zu den Funktionen ohne Konto, darunter
+das Anmeldeformular. Mit Link öffnet sich gleich „Registrieren“.
 
 1. Link oben öffnen und auf **Anmelden** tippen. Die App selbst liegt unter
    `app.html`; alte Lesezeichen auf `…/#/…` werden automatisch dorthin
@@ -72,6 +109,8 @@ Beim Start eines Unterrichts wählt man eine von zwei Ansichten:
   **rechte** Hälfte einen vor; die Position im Raster bleibt dabei fest,
   nur die Farbe wechselt. Im Header läuft eine Live-Zählung mit, z. B.
   „12 am Start | 5 arbeiten gut | 1 arbeitet großartig“.
+
+![Sortierte Ansicht: Raster aller Namen, die Farbe zeigt den Zustand, oben die Live-Zählung](docs/screenshots/unterricht-sortiert.png)
 
 Beide Ansichten sind nur unterschiedliche Darstellungen derselben Daten –
 die App misst in beiden automatisch, **wie lange** jede Person „gut“ oder
@@ -309,8 +348,12 @@ Baum statt eines Monsters, damit es auch bei älteren Klassen zieht.
 
   Der Fakt zur aktuellen Art steht während der Fokus-Phase dezent unter dem
   Timer und beim Pflanzen in der Erfolgsmeldung.
-- Ziel **Offen**: Der Timer zählt hoch, der Baum wird an den Schwellen oben
-  zur nächsten Art. Mit **Baum pflanzen** (ab 3 min) wird er mit der
+- Ziel **Offen**: Der Timer zählt hoch. Erst wächst eine Birke, ab 5 min ein
+  Kirschbaum. Ab 10 min kommen zwei Amseln, ab 15 min bauen sie ein Nest, ab
+  20 min kommt alle 5 min ein Vogel dazu (erst Küken, dann weitere Amseln).
+  Die Vögel kommen angeflogen und leben danach im Wald weiter: Sie picken,
+  schauen sich um, schütteln das Gefieder, die Küken betteln (nicht bei
+  „Bewegung reduzieren“). Mit **Baum pflanzen** (ab 3 min) wird er mit der
   erreichten Zeit gepflanzt. Wird es ab 3 min zu laut, vertrocknet der Baum
   nicht, sondern die zuletzt erreichte Stufe wird gepflanzt und ein neuer
   Samen startet.
@@ -327,10 +370,16 @@ Baum statt eines Monsters, damit es auch bei älteren Klassen zieht.
   Stimme nicht mitzählt. Die Empfindlichkeit lässt sich im *Probelauf ohne
   Klasse* einstellen.
 
+![Ziel wählen: sieben feste Ziele mit ihrer Baumart und das offene Ziel mit seinen Stufen von der Birke bis zu mehr Vögeln](docs/screenshots/fokus-ziel.png)
+
+![Alle Wälder: die Klassenwälder nebeneinander mit Schild, offene Bäume stehen als Kirschbäume mit ihren Vögeln darin](docs/screenshots/fokus-waelder.png)
+
 Das Mikrofon misst nur die Lautstärke direkt im Browser – es wird nichts
 aufgenommen, gespeichert oder übertragen. Gespeichert wird nur der fertige
-Baum. Einmalig muss dafür `supabase/migrations/0003_focus.sql` im Supabase
-SQL-Editor ausgeführt werden.
+Baum. Einmalig müssen dafür `supabase/migrations/0003_focus.sql` und
+`supabase/migrations/0010_focus_open_trees.sql` im Supabase SQL-Editor
+ausgeführt werden. Ohne 0010 werden offene Bäume trotzdem gepflanzt, stehen
+im Wald aber ohne Vögel und als die Art, die zur Zeit eines festen Ziels gehört.
 
 ---
 
@@ -377,7 +426,7 @@ Yt video geben -> Fragebogen/Quiz daraus erstellen
 
 **Derzeit: öffentliche Startseite, Konten nur auf Einladung.** Startseite,
 Fokus-Wald und Probe-Unterricht sind für alle offen; anmelden können nur
-Personen, denen der Betreiber einen Zugang angelegt hat.
+Personen mit Einladungslink.
 
 > **Achtung Impressum:** Mit der öffentlichen Startseite und den Funktionen
 > ohne Anmeldung ist die Seite ein Angebot an Dritte und dient nicht mehr
@@ -389,14 +438,25 @@ Personen, denen der Betreiber einen Zugang angelegt hat.
 
 - Startseite `index.html` ist die normale Produktseite, weiterhin mit
   `noindex` (nicht in Suchmaschinen).
-- In der App ist die Registrierung aus (`SIGNUP_OPEN = false` in `app.js`).
-- **Wichtig:** Im Supabase-Dashboard unter *Authentication → Sign In / Providers*
-  muss „Allow new users to sign up“ **aus** sein. Sonst ginge eine
-  Registrierung weiterhin direkt über die API.
-- **Zugang vergeben:** Supabase-Dashboard → *Authentication → Users → Add
-  user → Create new user*, E-Mail und Passwort eintragen, „Auto Confirm
-  User“ anhaken, Zugangsdaten persönlich weitergeben. Beim ersten Login
-  bestätigt die Person die Nutzungsbedingungen.
+- **Registrieren nur mit Einladungslink.** Einmalig
+  `supabase/migrations/0011_invites.sql` im Supabase SQL-Editor ausführen,
+  dann sich selbst als Admin eintragen:
+  ```sql
+  insert into public.admins (auth_user_id)
+  select id from auth.users where email = 'DEINE@MAIL.DE';
+  ```
+  Danach im Supabase-Dashboard unter *Authentication → Sign In / Providers*
+  „Allow new users to sign up“ **ein**schalten. Die Sperre sitzt in der
+  Datenbank (Trigger auf `auth.users`): Ohne gültigen Code schlägt jede
+  Registrierung fehl, auch direkt über die API.
+- **Jemanden einladen:** In der App *Konto-Menü → Einstellungen →
+  Einladungen*, optional eine Notiz („für wen“) eintragen, **Link
+  erstellen**. Der Link wird kopiert und gilt einmal und 14 Tage. Offene
+  Links lassen sich dort erneut kopieren oder zurückziehen. Die Person
+  legt damit selbst E-Mail, Passwort und Anzeigenamen fest und bestätigt
+  dabei die Nutzungsbedingungen.
+- Im Supabase-Dashboard geht *Invite user* weiterhin, *Add user* nicht
+  mehr (dafür fehlt der Code).
 
 **Ganz öffentlich machen** (z. B. wenn das Projekt größer wird):
 
