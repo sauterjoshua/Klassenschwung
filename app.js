@@ -4748,6 +4748,8 @@ const TREE_MOODS = ["calm", "uneasy", "loud", "withered", "banked", "done", "pau
 
 /** Ab hier kommen im offenen Modus die Voegel, dann bauen sie ein Nest. */
 const FOCUS_BIRDS_FROM = 10 * 60;
+/** Ab hier fliegen die Amseln los, holen Zweige und bauen bis FOCUS_NEST_FROM ihr Nest. */
+const FOCUS_BUILD_FROM = 12 * 60;
 const FOCUS_NEST_FROM = 15 * 60;
 /** Danach kommt in diesem Abstand ein Vogel dazu: erst Kueken, dann weitere Amseln. */
 const FOCUS_MORE_BIRDS_FROM = 20 * 60;
@@ -4757,26 +4759,40 @@ const FOCUS_MORE_BIRDS_EVERY = 5 * 60;
 const BIRD_PERCHES = [[76, 53, 1], [124, 53, -1], [57, 82, 1], [143, 80, -1], [100, 37, 1]];
 const BIRD_CHICKS = [[93, 120], [100, 119], [107, 120]];
 const BIRD_FLYERS = [[34, 44], [168, 32]];
+// Zweige des Nests in der Reihenfolge, in der die Amseln sie bringen: [x1, y1, x2, y2].
+const NEST_TWIGS = [[86, 124, 100, 129], [114, 124, 100, 129], [85, 127, 99, 133], [115, 127, 101, 133],
+  [88, 131, 112, 131], [87, 128, 104, 136], [113, 128, 96, 136], [90, 134, 110, 134], [92, 125, 108, 125],
+  [89, 126, 111, 132], [111, 126, 89, 132], [94, 136, 106, 136]];
 /** Die ersten zwei Sitzplaetze belegen die Voegel, die zuerst kommen. */
 const BIRD_EXTRA = BIRD_CHICKS.length + (BIRD_PERCHES.length - 2) + BIRD_FLYERS.length;
 
 const BIRD_FACTS = {
   birds: "Die Vogelkirsche heißt so, weil Amseln, Drosseln und Stare ihre Früchte lieben. " +
     "Die Kerne lassen sie woanders fallen – so pflanzen Vögel neue Kirschbäume.",
-  nest: "Amseln bauen ihr Nest aus Zweigen, Gras und Moos und kleiden es innen mit Lehm aus. " +
-    "Meist legt das Weibchen 3 bis 5 Eier.",
-  chicks: "Nach etwa zwei Wochen schlüpfen die Küken. Sie sind zuerst nackt und blind, " +
-    "und die Eltern fliegen viele Male am Tag mit Futter zum Nest."
+  build: "Amseln bauen ihr Nest aus Zweigen, Gras und Moos und kleiden es innen mit Lehm aus. " +
+    "Dafür fliegen sie viele Male hin und her.",
+  nest: "Meist legt das Amsel-Weibchen 3 bis 5 Eier und brütet sie knapp zwei Wochen lang aus.",
+  chicks: "Die Küken sind zuerst nackt und blind. Die Eltern fliegen viele Male am Tag " +
+    "mit Futter zum Nest."
 };
 
-/** Stufe im offenen Modus: Baumart, Voegel, Nest und zusaetzliche Voegel. */
+/**
+ * Stufe im offenen Modus: Baumart, Voegel, Nestbau, Nest und zusaetzliche Voegel.
+ * twigs = Zweige, die zu dieser Zeit schon im Nest liegen duerfen.
+ */
 function openStage(seconds) {
   const extra = seconds < FOCUS_MORE_BIRDS_FROM ? 0
     : Math.min(BIRD_EXTRA, 1 + Math.floor((seconds - FOCUS_MORE_BIRDS_FROM) / FOCUS_MORE_BIRDS_EVERY));
+  const nest = seconds >= FOCUS_NEST_FROM;
+  const building = !nest && seconds >= FOCUS_BUILD_FROM;
+  const twigs = nest ? NEST_TWIGS.length : building
+    ? Math.floor((seconds - FOCUS_BUILD_FROM) / (FOCUS_NEST_FROM - FOCUS_BUILD_FROM) * NEST_TWIGS.length) : 0;
   return {
     species: speciesForGoal(Math.min(seconds, TREE_SPECIES.kirsch.from)),
     birds: seconds >= FOCUS_BIRDS_FROM,
-    nest: seconds >= FOCUS_NEST_FROM,
+    building,
+    twigs,
+    nest,
     extra
   };
 }
@@ -4785,7 +4801,8 @@ function openStage(seconds) {
 function nextOpenStep(seconds) {
   if (seconds < TREE_SPECIES.kirsch.from) return { seconds: TREE_SPECIES.kirsch.from, text: "Kirschbaum" };
   if (seconds < FOCUS_BIRDS_FROM) return { seconds: FOCUS_BIRDS_FROM, text: "Vögel" };
-  if (seconds < FOCUS_NEST_FROM) return { seconds: FOCUS_NEST_FROM, text: "Nest" };
+  if (seconds < FOCUS_BUILD_FROM) return { seconds: FOCUS_BUILD_FROM, text: "Nestbau" };
+  if (seconds < FOCUS_NEST_FROM) return { seconds: FOCUS_NEST_FROM, text: "Nest fertig" };
   const { extra } = openStage(seconds);
   if (extra >= BIRD_EXTRA) return null;
   return {
@@ -4801,6 +4818,7 @@ function birdCount(stage) {
 /** Wer im Baum wohnt, als Satz fuer Steckbrief und Beschriftung. */
 function describeBirds(stage) {
   if (!stage.birds) return "";
+  if (stage.building) return "Zwei Amseln bauen darin gerade ihr Nest.";
   if (!stage.nest) return "Zwei Amseln wohnen darin.";
   const chicks = Math.min(stage.extra, BIRD_CHICKS.length);
   const more = stage.extra - chicks;
@@ -4822,9 +4840,17 @@ function birdLayers(transform, kind, timing, flight, ...parts) {
         svg("g", { class: "bird__idle", style: timing }, ...parts))));
 }
 
-/** Amsel, sitzend; Fuesse bei (0, 0), schaut nach rechts und kommt von hinten angeflogen. */
-function perchedBird(x, y, dir, timing) {
-  return birdLayers(`translate(${x} ${y}) scale(${1.3 * dir} 1.3)`, "perched", timing, "--fx:-150px;--fy:-90px",
+/**
+ * Amsel, sitzend; Fuesse bei (0, 0), schaut nach rechts und kommt von hinten angeflogen.
+ * trip = Versatz ihres Nestbau-Flugs (nur die ersten zwei Amseln bauen).
+ */
+function perchedBird(x, y, dir, timing, trip = null) {
+  const kind = trip === null ? "perched" : "perched bird--builder";
+  const flight = `--fx:-150px;--fy:-90px${trip === null ? "" : `;--trip-delay:${trip}s`}`;
+  return birdLayers(`translate(${x} ${y}) scale(${1.3 * dir} 1.3)`, kind, timing, flight,
+    // Zweig im Schnabel, nur waehrend des Rueckflugs beim Nestbau sichtbar
+    trip === null ? null : svg("path", { class: "bird__stick", d: "M8 -13.5 L18 -8", stroke: "#8a5a2b",
+      "stroke-width": 1.4, "stroke-linecap": "round" }),
     svg("path", { d: "M-1 0 V-3 M2 0 V-3", stroke: "#d98a2b", "stroke-width": 1, "stroke-linecap": "round" }),
     svg("polygon", { points: "-4,-6 -13,-3 -12,-8", fill: "#1f1f1f" }),
     svg("ellipse", { cx: 0, cy: -6, rx: 6.5, ry: 4.5, fill: "#2a2a2a" }),
@@ -4862,19 +4888,42 @@ function attachBirds(treeEl, seed = "") {
   };
   const nestBack = svg("ellipse", { cx: 100, cy: 124, rx: 13, ry: 3.4, fill: "#3f2a1a" });
   const chicks = BIRD_CHICKS.map(([x, y]) => chick(x, y, timing()));
-  const nestFront = svg("g", {},
-    svg("path", { d: "M85 123 Q100 141 115 123 Z", fill: "#7a5230" }),
-    svg("path", { d: "M87 126 L111 129 M89 131 L113 126 M93 134 L108 132", fill: "none", stroke: "#a57846",
-      "stroke-width": 1.2, "stroke-linecap": "round" }));
+  const nestFront = svg("path", { d: "M85 123 Q100 141 115 123 Z", fill: "#7a5230" });
   const nest = svg("g", { class: "bird bird--nest" }, nestBack, chicks, nestFront);
-  const perched = BIRD_PERCHES.map(([x, y, dir]) => perchedBird(x, y, dir, timing()));
+  const twigs = NEST_TWIGS.map(([x1, y1, x2, y2], i) => svg("path", {
+    class: "nest-twig", d: `M${x1} ${y1} L${x2} ${y2}`, fill: "none",
+    stroke: i % 2 ? "#a57846" : "#7a5230", "stroke-width": 1.8, "stroke-linecap": "round"
+  }));
+  // Die beiden Erbauer fliegen versetzt, damit immer nur einer unterwegs ist.
+  const perched = BIRD_PERCHES.map(([x, y, dir], i) =>
+    perchedBird(x, y, dir, timing(), i === 0 ? -3.6 : i === 1 ? -15.6 : null));
   const flyers = BIRD_FLYERS.map(([x, y]) => flyingBird(x, y, x < 100 ? -120 : 120, timing()));
 
-  treeEl.querySelector(".tree__motion").append(nest, ...perched);
+  treeEl.querySelector(".tree__motion").append(nest, ...twigs, ...perched);
   treeEl.append(...flyers);
+
+  // Beim Nestbau legt jede Rueckkehr einen Zweig ab, aber nie mehr, als die
+  // ruhige Zeit erlaubt (stage.twigs). Mit 15 min liegen alle Zweige.
+  let shown = 0;
+  let allowed = 0;
+  const showTwigs = (count) => {
+    shown = count;
+    twigs.forEach((t, i) => t.classList.toggle("is-on", i < count));
+  };
+  const animated = !treeEl.classList.contains("tree--still") &&
+    !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  for (const builder of perched.slice(0, 2)) {
+    builder.addEventListener("animationiteration", (event) => {
+      if (event.animationName === "bird-trip" && shown < allowed) showTwigs(shown + 1);
+    });
+  }
 
   const on = (g, value) => g.firstChild.classList.toggle("is-on", value);
   return function set(stage) {
+    allowed = stage.twigs ?? 0;
+    if (!animated || !stage.building || shown > allowed) showTwigs(allowed);
+    // Im Wald und bei "Bewegung reduzieren" sitzen die Erbauer still.
+    treeEl.classList.toggle("is-building", animated && Boolean(stage.building));
     // Reihenfolge der Neuankoemmlinge: Kueken, weitere Amseln, dann fliegende.
     const extraPerched = Math.max(0, stage.extra - chicks.length);
     nest.classList.toggle("is-on", stage.nest);
@@ -5751,6 +5800,7 @@ async function renderFocusRoom(classId) {
     const factText = () => !stage?.birds ? TREE_SPECIES[species].fact
       : stage.extra > 0 ? BIRD_FACTS.chicks
       : stage.nest ? BIRD_FACTS.nest
+      : stage.building ? BIRD_FACTS.build
       : BIRD_FACTS.birds;
     const showFact = () => { factEl.textContent = `Wusstest du? ${factText()}`; };
     showFact();
@@ -5847,7 +5897,7 @@ async function renderFocusRoom(classId) {
         if (phase === "running") {
           const now = openStage(elapsed);
           if (now.species !== species) setSpecies(now.species, elapsed >= FOCUS_OPEN_GROWN_SECONDS ? 1 : 0);
-          if (now.birds !== stage.birds || now.nest !== stage.nest || now.extra !== stage.extra) {
+          if (["birds", "building", "twigs", "nest", "extra"].some((key) => now[key] !== stage[key])) {
             stage = now;
             setBirds?.(stage);
             showFact();
@@ -5855,7 +5905,7 @@ async function renderFocusRoom(classId) {
         }
         const next = nextOpenStep(elapsed);
         const count = birdCount(stage);
-        const current = [TREE_SPECIES[species].name, stage.nest ? "Nest" : null,
+        const current = [TREE_SPECIES[species].name, stage.nest ? "Nest" : stage.building ? "Nestbau" : null,
           count ? `${count} Vögel` : null].filter(Boolean).join(" · ");
         timeEl.textContent = formatClock(Math.floor(elapsed));
         progressFill.style.width = `${(next ? elapsed / next.seconds : 1) * 100}%`;

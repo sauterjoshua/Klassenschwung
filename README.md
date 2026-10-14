@@ -349,8 +349,9 @@ Baum statt eines Monsters, damit es auch bei älteren Klassen zieht.
   Der Fakt zur aktuellen Art steht während der Fokus-Phase dezent unter dem
   Timer und beim Pflanzen in der Erfolgsmeldung.
 - Ziel **Offen**: Der Timer zählt hoch. Erst wächst eine Birke, ab 5 min ein
-  Kirschbaum. Ab 10 min kommen zwei Amseln, ab 15 min bauen sie ein Nest, ab
-  20 min kommt alle 5 min ein Vogel dazu (erst Küken, dann weitere Amseln).
+  Kirschbaum. Ab 10 min kommen zwei Amseln. Ab 12 min fliegen sie abwechselnd
+  los, bringen Zweige und bauen langsam ihr Nest, das mit 15 min fertig ist.
+  Ab 20 min kommt alle 5 min ein Vogel dazu (erst Küken, dann weitere Amseln).
   Die Vögel kommen angeflogen und leben danach im Wald weiter: Sie picken,
   schauen sich um, schütteln das Gefieder, die Küken betteln (nicht bei
   „Bewegung reduzieren“). Mit **Baum pflanzen** (ab 3 min) wird er mit der

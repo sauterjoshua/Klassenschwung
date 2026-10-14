@@ -1653,10 +1653,19 @@ details summary { cursor: pointer; }
 /* Beim Anflug schlagen die Fluegel, danach wieder Alltag. */
 .bird--perched.is-on .bird__wing { animation: wing-ruffle var(--t) var(--delay) ease-in-out infinite, wing-flap .15s ease-in-out 11 alternate; }
 
+/* Nestbau (offenes Ziel, 12 bis 15 min): die zwei Erbauer fliegen abwechselnd
+   los und kommen mit einem Zweig zum Nest. Jeder Durchlauf endet am Nest, dort
+   legt app.js (animationiteration) den naechsten Zweig ab. */
+.nest-twig { opacity: 0; transition: opacity .5s; }
+.nest-twig.is-on { opacity: 1; }
+.bird__stick { opacity: 0; }
+.is-building .bird--builder.is-on .bird__mood { animation: bird-trip 24s var(--trip-delay) ease-in-out infinite; }
+.is-building .bird--builder.is-on .bird__stick { animation: stick-carry 24s var(--trip-delay) linear infinite; }
+
 /* Laerm: unruhig hopsen; wird der Baum zurueckgesetzt, fliegen sie davon. */
-.tree--loud .bird__mood { animation: bird-hop .3s linear infinite; }
-.tree--withered .bird__mood,
-.tree--banked .bird__mood { animation: bird-away 1.2s ease-in forwards; }
+.tree.tree--loud .bird .bird__mood { animation: bird-hop .3s linear infinite; }
+.tree.tree--withered .bird .bird__mood,
+.tree.tree--banked .bird .bird__mood { animation: bird-away 1.2s ease-in forwards; }
 
 .tree--still .bird,
 .tree--instant .bird { transition: none !important; animation: none !important; }
@@ -1705,6 +1714,19 @@ details summary { cursor: pointer; }
   0%, 30%, 100% { transform: none; }
   5%, 15%, 25%  { transform: scaleY(-.7); }
   10%, 20%      { transform: none; }
+}
+/* Koordinaten im Vogel (1.3-fach, gespiegelt): (18, 55) ist das Nest. */
+@keyframes bird-trip {
+  0%       { transform: translate(18px, 55px); opacity: 1; }
+  10%, 45% { transform: none; opacity: 1; }
+  57%, 72% { transform: translate(-130px, -70px); opacity: 0; }
+  80%      { transform: translate(-50px, -12px); opacity: 1; }
+  90%, 100% { transform: translate(18px, 55px); opacity: 1; }
+}
+@keyframes stick-carry {
+  0%, 72%  { opacity: 0; }
+  74%, 99% { opacity: 1; }
+  100%     { opacity: 0; }
 }
 @keyframes bird-hop {
   0%, 100% { transform: translateY(0); }
